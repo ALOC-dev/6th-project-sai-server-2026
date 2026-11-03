@@ -87,6 +87,10 @@ public class JwtTokenProvider {
         return parseClaims(token).get("type", String.class);
     }
 
+    public Long getUserId(String token) {
+        return Long.valueOf(parseClaims(token).getSubject());
+    }
+
     private Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
