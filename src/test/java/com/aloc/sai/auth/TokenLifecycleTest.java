@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -41,6 +42,9 @@ class TokenLifecycleTest {
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private RefreshTokenCleanupScheduler cleanupScheduler;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -184,6 +188,28 @@ class TokenLifecycleTest {
                         .content("{\"refreshToken\":\"" + field(loginResponse, "refreshToken")
                                 + "\",\"pushToken\":\"ExponentPushToken[test]\"}"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 만료된_토큰만_정리한다() throws Exception {
+        login("user-1");
+        User user = userRepository.findByKakaoId(1L).orElseThrow();
+        refreshTokenRepository.save(new RefreshToken(user, "a".repeat(64), LocalDateTime.now().minusMinutes(1)));
+
+        cleanupScheduler.deleteExpiredTokens();
+
+        assertThat(refreshTokenRepository.count()).isEqualTo(1);
+        assertThat(refreshTokenRepository.findAll().getFirst().getTokenHash()).isNotEqualTo("a".repeat(64));
+    }
+
+    @Test
+    void 정리_작업은_매일_새벽_4시에_실행된다() throws Exception {
+        Scheduled scheduled = RefreshTokenCleanupScheduler.class
+                .getMethod("deleteExpiredTokens")
+                .getAnnotation(Scheduled.class);
+
+        assertThat(scheduled.cron()).isEqualTo("0 0 4 * * *");
+        assertThat(scheduled.zone()).isEqualTo("Asia/Seoul");
     }
 
     private String login(String kakaoAccessToken) throws Exception {
