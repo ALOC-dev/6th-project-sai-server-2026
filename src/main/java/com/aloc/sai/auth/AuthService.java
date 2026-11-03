@@ -63,6 +63,11 @@ public class AuthService {
         return new TokenRefreshResponse(jwtTokenProvider.createToken(userId), newRefreshToken);
     }
 
+    @Transactional
+    public void logout(Long userId, String refreshToken) {
+        refreshTokenRepository.deleteByTokenHashAndUserId(hash(refreshToken), userId);
+    }
+
     private KakaoLoginResponse issueTokens(User user, boolean isNewUser) {
         String accessToken = jwtTokenProvider.createToken(user.getUserId());
         String refreshToken = saveNewRefreshToken(user);

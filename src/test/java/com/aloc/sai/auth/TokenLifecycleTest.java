@@ -56,6 +56,7 @@ class TokenLifecycleTest {
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
         given(kakaoClient.getUserInfo("user-1")).willReturn(new KakaoUserInfo(1L, "지윤", null));
+        given(kakaoClient.getUserInfo("user-2")).willReturn(new KakaoUserInfo(2L, "민수", null));
     }
 
     @Test
@@ -123,6 +124,68 @@ class TokenLifecycleTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void 로그아웃하면_토큰을_폐기하고_재발급할_수_없다() throws Exception {
+        String loginResponse = login("user-1");
+        String refreshToken = field(loginResponse, "refreshToken");
+
+        logout(field(loginResponse, "accessToken"), refreshToken).andExpect(status().isNoContent());
+
+        assertThat(refreshTokenRepository.count()).isZero();
+        refresh(refreshToken).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 로그아웃은_이미_폐기된_토큰이어도_성공한다() throws Exception {
+        String loginResponse = login("user-1");
+        String accessToken = field(loginResponse, "accessToken");
+        String refreshToken = field(loginResponse, "refreshToken");
+
+        logout(accessToken, refreshToken).andExpect(status().isNoContent());
+        logout(accessToken, refreshToken).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 다른_사용자의_리프레시_토큰은_폐기하지_않는다() throws Exception {
+        String victimToken = field(login("user-1"), "refreshToken");
+        String attackerAccessToken = field(login("user-2"), "accessToken");
+
+        logout(attackerAccessToken, victimToken).andExpect(status().isNoContent());
+
+        assertThat(refreshTokenRepository.count()).isEqualTo(2);
+        refresh(victimToken).andExpect(status().isOk());
+    }
+
+    @Test
+    void 로그아웃은_유효한_접근_토큰이_없으면_401을_반환한다() throws Exception {
+        String loginResponse = login("user-1");
+        String refreshToken = field(loginResponse, "refreshToken");
+        Long userId = userRepository.findByKakaoId(1L).orElseThrow().getUserId();
+        String expiredAccessToken = expiredProvider().createToken(userId);
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tokenBody(refreshToken)))
+                .andExpect(status().isUnauthorized());
+        logout(field(loginResponse, "accessToken") + "x", refreshToken).andExpect(status().isUnauthorized());
+        logout(expiredAccessToken, refreshToken).andExpect(status().isUnauthorized());
+        logout(refreshToken, refreshToken).andExpect(status().isUnauthorized());
+
+        assertThat(refreshTokenRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 로그아웃은_pushToken이_있어도_성공한다() throws Exception {
+        String loginResponse = login("user-1");
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header("Authorization", "Bearer " + field(loginResponse, "accessToken"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + field(loginResponse, "refreshToken")
+                                + "\",\"pushToken\":\"ExponentPushToken[test]\"}"))
+                .andExpect(status().isNoContent());
+    }
+
     private String login(String kakaoAccessToken) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -133,6 +196,13 @@ class TokenLifecycleTest {
 
     private ResultActions refresh(String refreshToken) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tokenBody(refreshToken)));
+    }
+
+    private ResultActions logout(String accessToken, String refreshToken) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/logout")
+                .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(tokenBody(refreshToken)));
     }
