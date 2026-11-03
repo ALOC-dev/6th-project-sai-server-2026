@@ -2,6 +2,8 @@ package com.aloc.sai.auth;
 
 import com.aloc.sai.auth.dto.KakaoLoginRequest;
 import com.aloc.sai.auth.dto.KakaoLoginResponse;
+import com.aloc.sai.auth.dto.TokenRefreshRequest;
+import com.aloc.sai.auth.dto.TokenRefreshResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,5 +20,10 @@ public class AuthController {
     @PostMapping("/kakao")
     public KakaoLoginResponse loginWithKakao(@Valid @RequestBody KakaoLoginRequest request) {
         return authService.loginWithKakao(request.kakaoAccessToken());
+    }
+
+    @PostMapping("/refresh")
+    public TokenRefreshResponse refresh(@Valid @RequestBody TokenRefreshRequest request) {
+        return authService.refresh(request.refreshToken());
     }
 }
