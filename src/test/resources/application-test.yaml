@@ -1,3 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:sai;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
 jwt:
   secret: dGVzdC1zZWNyZXQta2V5LWZvci1zYWktdGVzdHMtb25seS0zMmJ5dGVz
   access-expiration-ms: 3600000
