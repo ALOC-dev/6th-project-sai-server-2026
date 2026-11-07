@@ -2,6 +2,7 @@ package com.aloc.sai.user;
 
 import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.user.dto.NicknameCheckResponse;
 import com.aloc.sai.user.dto.UserProfileResponse;
 import com.aloc.sai.user.dto.UserUpdateRequest;
 import lombok.RequiredArgsConstructor;
@@ -78,6 +79,12 @@ public class UserService {
         return UserProfileResponse.from(user);
     }
 
+    @Transactional(readOnly = true)
+    public NicknameCheckResponse checkNickname(Long userId, String requestedNickname) {
+        String nickname = normalizeNickname(requestedNickname);
+        return new NicknameCheckResponse(nickname, isNicknameAvailable(findUser(userId), nickname));
+    }
+
     // 사용자를 참조하는 테이블이 생기면 여기서 함께 정리해야 한다.
     @Transactional
     public void withdraw(Long userId, String confirmation) {
@@ -96,20 +103,30 @@ public class UserService {
     }
 
     private void changeNickname(User user, String requestedNickname) {
-        String nickname = requestedNickname.strip();
-        int length = nickname.codePointCount(0, nickname.length());
-        if (length < 1 || length > NICKNAME_MAX_LENGTH) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "닉네임은 1자 이상 20자 이하여야 합니다.");
-        }
-
+        String nickname = normalizeNickname(requestedNickname);
         if (nickname.equals(user.getNickname())) {
             return;
         }
-        if (userRepository.existsByNickname(nickname)) {
+        if (!isNicknameAvailable(user, nickname)) {
             throw new ApiException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
         }
 
         user.updateNickname(nickname);
+    }
+
+    // 중복 확인과 회원정보 수정이 같은 규칙을 쓰도록 공백 제거와 길이 검사를 한 곳에서 한다.
+    private String normalizeNickname(String requestedNickname) {
+        String nickname = requestedNickname == null ? "" : requestedNickname.strip();
+        int length = nickname.codePointCount(0, nickname.length());
+        if (length < 1 || length > NICKNAME_MAX_LENGTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "닉네임은 1자 이상 20자 이하여야 합니다.");
+        }
+        return nickname;
+    }
+
+    // 본인의 현재 닉네임은 사용 가능으로 본다.
+    private boolean isNicknameAvailable(User user, String nickname) {
+        return nickname.equals(user.getNickname()) || !userRepository.existsByNickname(nickname);
     }
 
     // 빈 문자열이면 상태 메시지를 지운다.
