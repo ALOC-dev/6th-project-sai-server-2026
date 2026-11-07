@@ -2,7 +2,6 @@ package com.aloc.sai.dev;
 
 import com.aloc.sai.security.JwtTokenProvider;
 import com.aloc.sai.user.User;
-import com.aloc.sai.user.UserRepository;
 import com.aloc.sai.user.UserService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -22,14 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class DevTokenController {
     private static final String TEST_USER_NAME = "테스트";
 
-    private final UserRepository userRepository;
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
 
     @PostMapping("/token")
     public DevTokenResponse issueToken(@Valid @RequestBody DevTokenRequest request) {
-        User user = userRepository.findByKakaoId(request.kakaoId())
-                .orElseGet(() -> userService.registerKakaoUser(request.kakaoId(), TEST_USER_NAME, null));
+        User user = userService.findOrRegisterKakaoUser(request.kakaoId(), TEST_USER_NAME, null).user();
 
         return new DevTokenResponse(jwtTokenProvider.createToken(user.getUserId()), user.getUserId(), user.getNickname());
     }

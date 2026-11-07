@@ -5,11 +5,10 @@ import com.aloc.sai.auth.dto.KakaoLoginResponse;
 import com.aloc.sai.auth.dto.LogoutRequest;
 import com.aloc.sai.auth.dto.TokenRefreshRequest;
 import com.aloc.sai.auth.dto.TokenRefreshResponse;
+import com.aloc.sai.security.LoginUserId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,9 +34,9 @@ public class AuthController {
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @LoginUserId Long userId,
             @Valid @RequestBody LogoutRequest request
     ) {
-        authService.logout(Long.valueOf(userDetails.getUsername()), request.refreshToken());
+        authService.logout(userId, request.refreshToken());
     }
 }

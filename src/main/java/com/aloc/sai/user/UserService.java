@@ -2,6 +2,7 @@ package com.aloc.sai.user;
 
 import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.user.dto.KakaoUserResult;
 import com.aloc.sai.user.dto.NicknameCheckResponse;
 import com.aloc.sai.user.dto.UserProfileResponse;
 import com.aloc.sai.user.dto.UserUpdateRequest;
@@ -13,6 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -30,10 +34,20 @@ public class UserService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
 
-    @Transactional
-    public User registerKakaoUser(Long kakaoId, String kakaoName, String profileImageUrl) {
-        User user = new User(kakaoId, generateNickname(kakaoName), profileImageUrl, generateFriendCode());
-        return userRepository.saveAndFlush(user);
+    // 트랜잭션을 걸지 않는다. 동시 가입으로 저장이 실패해도 롤백 전용 상태가 되지 않고 바로 다시 조회할 수 있게 하기 위해서다.
+    public KakaoUserResult findOrRegisterKakaoUser(Long kakaoId, String kakaoName, String profileImageUrl) {
+        Optional<User> existingUser = userRepository.findByKakaoId(kakaoId);
+        if (existingUser.isPresent()) {
+            return new KakaoUserResult(existingUser.get(), false);
+        }
+
+        try {
+            User user = new User(kakaoId, generateNickname(kakaoName), profileImageUrl, generateFriendCode());
+            return new KakaoUserResult(userRepository.saveAndFlush(user), true);
+        } catch (DataIntegrityViolationException e) {
+            User concurrentlyRegisteredUser = userRepository.findByKakaoId(kakaoId).orElseThrow(() -> e);
+            return new KakaoUserResult(concurrentlyRegisteredUser, false);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -104,9 +118,6 @@ public class UserService {
 
     private void changeNickname(User user, String requestedNickname) {
         String nickname = normalizeNickname(requestedNickname);
-        if (nickname.equals(user.getNickname())) {
-            return;
-        }
         if (!isNicknameAvailable(user, nickname)) {
             throw new ApiException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
         }
@@ -117,7 +128,7 @@ public class UserService {
     // 중복 확인과 회원정보 수정이 같은 규칙을 쓰도록 공백 제거와 길이 검사를 한 곳에서 한다.
     private String normalizeNickname(String requestedNickname) {
         String nickname = requestedNickname == null ? "" : requestedNickname.strip();
-        int length = nickname.codePointCount(0, nickname.length());
+        int length = length(nickname);
         if (length < 1 || length > NICKNAME_MAX_LENGTH) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "닉네임은 1자 이상 20자 이하여야 합니다.");
         }
@@ -135,7 +146,7 @@ public class UserService {
         if (message.isEmpty()) {
             return null;
         }
-        if (message.codePointCount(0, message.length()) > STATUS_MESSAGE_MAX_LENGTH) {
+        if (length(message) > STATUS_MESSAGE_MAX_LENGTH) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "상태 메시지는 50자 이하여야 합니다.");
         }
         return message;
@@ -143,18 +154,13 @@ public class UserService {
 
     private String generateNickname(String kakaoName) {
         String name = normalizeName(kakaoName);
-
-        for (int attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
-            String nickname = name + (1000 + random.nextInt(9000));
-            if (!userRepository.existsByNickname(nickname)) {
-                return nickname;
-            }
-        }
-
-        throw new IllegalStateException("닉네임을 생성하지 못했습니다.");
+        return generateUnique(
+                () -> name + (1000 + random.nextInt(9000)),
+                userRepository::existsByNickname,
+                "닉네임을 생성하지 못했습니다.");
     }
 
-    // 닉네임 길이는 문자 수 기준이므로 이모지가 잘리지 않도록 코드 포인트로 자른다.
+    // 이모지가 잘리지 않도록 코드 포인트 기준으로 자른다.
     private String normalizeName(String kakaoName) {
         String name = kakaoName == null ? "" : kakaoName.strip();
         if (name.isEmpty()) {
@@ -162,25 +168,39 @@ public class UserService {
         }
 
         int maxLength = NICKNAME_MAX_LENGTH - NICKNAME_SUFFIX_LENGTH;
-        if (name.codePointCount(0, name.length()) <= maxLength) {
+        if (length(name) <= maxLength) {
             return name;
         }
 
         return name.substring(0, name.offsetByCodePoints(0, maxLength)).strip();
     }
 
-    private String generateFriendCode() {
-        for (int attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
-            StringBuilder code = new StringBuilder(FRIEND_CODE_LENGTH);
-            for (int i = 0; i < FRIEND_CODE_LENGTH; i++) {
-                code.append(FRIEND_CODE_CHARACTERS.charAt(random.nextInt(FRIEND_CODE_CHARACTERS.length())));
-            }
+    // 글자 수는 코드 포인트 기준으로 센다. 이모지 하나를 한 글자로 보기 위해서다.
+    private static int length(String value) {
+        return value.codePointCount(0, value.length());
+    }
 
-            if (!userRepository.existsByFriendCode(code.toString())) {
-                return code.toString();
+    private String generateFriendCode() {
+        return generateUnique(this::randomFriendCode, userRepository::existsByFriendCode, "친구 코드를 생성하지 못했습니다.");
+    }
+
+    private String randomFriendCode() {
+        StringBuilder code = new StringBuilder(FRIEND_CODE_LENGTH);
+        for (int i = 0; i < FRIEND_CODE_LENGTH; i++) {
+            code.append(FRIEND_CODE_CHARACTERS.charAt(random.nextInt(FRIEND_CODE_CHARACTERS.length())));
+        }
+        return code.toString();
+    }
+
+    // 무작위 후보를 만들어 이미 쓰는 값이 아니면 돌려준다. 정해진 횟수 안에 못 찾으면 실패한다.
+    private String generateUnique(Supplier<String> candidates, Predicate<String> exists, String failureMessage) {
+        for (int attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+            String candidate = candidates.get();
+            if (!exists.test(candidate)) {
+                return candidate;
             }
         }
 
-        throw new IllegalStateException("친구 코드를 생성하지 못했습니다.");
+        throw new IllegalStateException(failureMessage);
     }
 }

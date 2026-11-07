@@ -1,5 +1,6 @@
 package com.aloc.sai.user;
 
+import com.aloc.sai.security.LoginUserId;
 import com.aloc.sai.user.dto.NicknameCheckResponse;
 import com.aloc.sai.user.dto.UserProfileResponse;
 import com.aloc.sai.user.dto.UserUpdateRequest;
@@ -7,8 +8,6 @@ import com.aloc.sai.user.dto.WithdrawRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -25,32 +24,32 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/me")
-    public UserProfileResponse getMe(@AuthenticationPrincipal UserDetails userDetails) {
-        return userService.getProfile(Long.valueOf(userDetails.getUsername()));
+    public UserProfileResponse getMe(@LoginUserId Long userId) {
+        return userService.getProfile(userId);
     }
 
     @GetMapping("/nickname/check")
     public NicknameCheckResponse checkNickname(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @LoginUserId Long userId,
             @RequestParam(required = false) String nickname
     ) {
-        return userService.checkNickname(Long.valueOf(userDetails.getUsername()), nickname);
+        return userService.checkNickname(userId, nickname);
     }
 
     @PatchMapping("/me")
     public UserProfileResponse updateMe(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @LoginUserId Long userId,
             @Valid @RequestBody UserUpdateRequest request
     ) {
-        return userService.updateProfile(Long.valueOf(userDetails.getUsername()), request);
+        return userService.updateProfile(userId, request);
     }
 
     @DeleteMapping("/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void withdraw(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @LoginUserId Long userId,
             @Valid @RequestBody WithdrawRequest request
     ) {
-        userService.withdraw(Long.valueOf(userDetails.getUsername()), request.confirmation());
+        userService.withdraw(userId, request.confirmation());
     }
 }
