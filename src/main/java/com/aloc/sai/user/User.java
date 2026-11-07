@@ -63,4 +63,29 @@ public class User {
     public boolean isProfileCompleted() {
         return studentId != null && department != null;
     }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public void updateStudentId(String studentId) {
+        this.studentId = studentId;
+    }
+
+    public void updateDepartment(String department) {
+        this.department = department;
+    }
+
+    public void updateStatusMessage(String statusMessage) {
+        this.statusMessage = statusMessage;
+    }
+
+    // 값이 바뀔 때만 동의 일시를 갱신한다. 같은 값이면 기존 일시를 유지한다.
+    public void updateMarketingAgreed(boolean marketingAgreed, LocalDateTime now) {
+        if (this.marketingAgreed == marketingAgreed) {
+            return;
+        }
+        this.marketingAgreed = marketingAgreed;
+        this.marketingAgreedAt = marketingAgreed ? now : null;
+    }
 }
