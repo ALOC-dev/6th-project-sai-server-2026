@@ -32,14 +32,18 @@ public class UserService {
         return userRepository.saveAndFlush(user);
     }
 
+    @Transactional(readOnly = true)
+    public UserProfileResponse getProfile(Long userId) {
+        return UserProfileResponse.from(findUser(userId));
+    }
+
     @Transactional
     public UserProfileResponse updateProfile(Long userId, UserUpdateRequest request) {
         if (request.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 항목이 없습니다.");
         }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+        User user = findUser(userId);
 
         // 초기 설정 전이면 학번과 학과를 함께 받아야 profileCompleted가 true가 된다.
         if (!user.isProfileCompleted() && (request.studentId() == null || request.department() == null)) {
@@ -69,6 +73,11 @@ public class UserService {
         }
 
         return UserProfileResponse.from(user);
+    }
+
+    private User findUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
     }
 
     private void changeNickname(User user, String requestedNickname) {
