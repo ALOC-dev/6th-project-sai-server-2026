@@ -9,8 +9,8 @@ import com.aloc.sai.security.JwtTokenProvider;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import com.aloc.sai.user.UserService;
+import com.aloc.sai.user.dto.KakaoUserResult;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,22 +31,10 @@ public class AuthService {
 
     public KakaoLoginResponse loginWithKakao(String kakaoAccessToken) {
         KakaoUserInfo kakaoUser = kakaoClient.getUserInfo(kakaoAccessToken);
+        KakaoUserResult result = userService.findOrRegisterKakaoUser(
+                kakaoUser.kakaoId(), kakaoUser.nickname(), kakaoUser.profileImageUrl());
 
-        User existingUser = userRepository.findByKakaoId(kakaoUser.kakaoId()).orElse(null);
-        if (existingUser != null) {
-            return issueTokens(existingUser, false);
-        }
-
-        User newUser;
-        try {
-            newUser = userService.registerKakaoUser(
-                    kakaoUser.kakaoId(), kakaoUser.nickname(), kakaoUser.profileImageUrl());
-        } catch (DataIntegrityViolationException e) {
-            User concurrentlyRegisteredUser = userRepository.findByKakaoId(kakaoUser.kakaoId()).orElseThrow(() -> e);
-            return issueTokens(concurrentlyRegisteredUser, false);
-        }
-
-        return issueTokens(newUser, true);
+        return issueTokens(result.user(), result.newUser());
     }
 
     @Transactional
