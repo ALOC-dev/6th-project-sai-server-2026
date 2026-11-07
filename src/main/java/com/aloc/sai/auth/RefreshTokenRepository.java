@@ -17,6 +17,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     int deleteByTokenHashAndUserId(@Param("tokenHash") String tokenHash, @Param("userId") Long userId);
 
     @Modifying
+    @Query("delete from RefreshToken r where r.user.userId = :userId")
+    int deleteByUserId(@Param("userId") Long userId);
+
+    @Modifying
     @Query("delete from RefreshToken r where r.expiresAt < :now")
     int deleteExpired(@Param("now") LocalDateTime now);
 }

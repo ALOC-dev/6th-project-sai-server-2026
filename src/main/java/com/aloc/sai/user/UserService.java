@@ -1,5 +1,6 @@
 package com.aloc.sai.user;
 
+import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.common.exception.ApiException;
 import com.aloc.sai.user.dto.UserProfileResponse;
 import com.aloc.sai.user.dto.UserUpdateRequest;
@@ -22,9 +23,11 @@ public class UserService {
     private static final int FRIEND_CODE_LENGTH = 8;
     private static final int MAX_GENERATION_ATTEMPTS = 20;
     private static final int STATUS_MESSAGE_MAX_LENGTH = 50;
+    private static final String WITHDRAW_CONFIRMATION = "DELETE";
 
     private final SecureRandom random = new SecureRandom();
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional
     public User registerKakaoUser(Long kakaoId, String kakaoName, String profileImageUrl) {
@@ -73,6 +76,18 @@ public class UserService {
         }
 
         return UserProfileResponse.from(user);
+    }
+
+    // 사용자를 참조하는 테이블이 생기면 여기서 함께 정리해야 한다.
+    @Transactional
+    public void withdraw(Long userId, String confirmation) {
+        if (!WITHDRAW_CONFIRMATION.equals(confirmation)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "탈퇴 확인 문구가 올바르지 않습니다.");
+        }
+
+        User user = findUser(userId);
+        refreshTokenRepository.deleteByUserId(userId);
+        userRepository.delete(user);
     }
 
     private User findUser(Long userId) {
