@@ -12,7 +12,8 @@ public record UserProfileResponse(
         String studentId,
         String department,
         boolean marketingAgreed,
-        LocalDateTime marketingAgreedAt
+        LocalDateTime marketingAgreedAt,
+        LocalDateTime createdAt
 ) {
     public static UserProfileResponse from(User user) {
         return new UserProfileResponse(
@@ -23,7 +24,8 @@ public record UserProfileResponse(
                 user.getStudentId(),
                 user.getDepartment(),
                 user.isMarketingAgreed(),
-                user.getMarketingAgreedAt()
+                user.getMarketingAgreedAt(),
+                user.getCreatedAt()
         );
     }
 }
