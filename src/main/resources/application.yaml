@@ -26,3 +26,4 @@ jwt:
   refresh-expiration-ms: 1209600000  # 14일
 kakao:
   user-info-uri: https://kapi.kakao.com/v2/user/me
+
