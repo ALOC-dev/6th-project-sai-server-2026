@@ -1,5 +1,6 @@
 package com.aloc.sai.chat;
 
+import com.aloc.sai.chat.dto.CreateChatRoomResult;
 import com.aloc.sai.common.exception.ApiException;
 import com.aloc.sai.chat.dto.ChatRoomResponse;
 import com.aloc.sai.chat.dto.CreateChatRoomRequest;

@@ -2,6 +2,7 @@ package com.aloc.sai.chat;
 
 import com.aloc.sai.chat.dto.ChatRoomResponse;
 import com.aloc.sai.chat.dto.CreateChatRoomRequest;
+import com.aloc.sai.chat.dto.CreateChatRoomResult;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
