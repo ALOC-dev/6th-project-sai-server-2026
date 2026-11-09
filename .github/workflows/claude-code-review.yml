@@ -1,6 +1,6 @@
 # .github/workflows/claude-code-review.yml
 # PR이 열리거나 커밋이 추가될 때 CLAUDE.md 기준으로 자동 리뷰합니다.
-# 사전 준비: 저장소 Settings > Secrets > Actions 에 ANTHROPIC_API_KEY 등록,
+# 사전 준비: claude setup-token 으로 발급한 토큰을 Settings > Secrets > Actions 에 CLAUDE_CODE_OAUTH_TOKEN 으로 등록,
 #           Claude GitHub App(https://github.com/apps/claude) 설치
 name: Claude Code Review
 
@@ -31,7 +31,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
