@@ -10,7 +10,7 @@
 - 인증: Spring Security + JWT(jjwt), 카카오 로그인
 - API 문서: springdoc Swagger UI (`/swagger-ui.html`)
 - 클라이언트: React Native(Expo)
-- API 명세의 기준은 노션 API 명세서입니다. <!-- TODO: ALOC 노션 명세서 링크 -->
+- API 명세의 기준은 [노션 API 명세서](https://app.notion.com/p/API-40931c4f7fe780848a56c6dbf93a87c2)입니다.
 
 ## 명령어
 ```bash
