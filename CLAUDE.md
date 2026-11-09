@@ -19,7 +19,7 @@
 ./gradlew test --tests "*UserUpdateTest"   # 특정 테스트
 ./gradlew bootRun --args='--spring.profiles.active=local'   # 로컬 실행
 ```
-- 로컬 실행 시 DB 접속 정보는 환경 변수 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`로 주입합니다. 값은 `.env`에 두며 저장소에 올리지 않습니다.
+- 로컬 실행 시 환경 변수 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`을 주입합니다. `JWT_SECRET`은 Base64 인코딩된 값이며 디코딩 후 32바이트 이상이어야 합니다. 값은 `.env`에 두며 저장소에 올리지 않습니다.
 - 테스트는 `@ActiveProfiles("test")` + H2 인메모리(MySQL 모드)를 사용하므로 DB가 필요 없습니다.
 - `local` 프로필에서만 개발용 토큰 발급 API(`dev/`)가 활성화됩니다.
 
