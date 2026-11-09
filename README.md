@@ -11,7 +11,7 @@
 ./gradlew test                                             # 테스트 (H2 사용, DB 불필요)
 ./gradlew bootRun --args='--spring.profiles.active=local'  # 로컬 실행
 ```
-로컬 실행에는 환경 변수 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`가 필요합니다.
+로컬 실행에는 환경 변수 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`(Base64 인코딩, 32바이트 이상)이 필요합니다.
 
 ## 문서
 - API 문서: 서버 실행 후 `/swagger-ui.html`
