@@ -31,7 +31,9 @@ com.aloc.sai
 ├── security/           # JWT 필터·프로바이더, @LoginUserId
 ├── dev/                # local 프로필 전용 (테스트 토큰 발급)
 ├── auth/               # 로그인·토큰 (+ kakao/, dto/)
-└── user/               # 회원
+├── user/               # 회원
+├── chat/               # 채팅 (+ dto/)
+└── appointment/        # 약속
 ```
 - 도메인 패키지 바로 아래에 Controller·Service·Repository·Entity를 두고, 하위 패키지는 `dto/`만 둡니다.
 - 새 도메인도 같은 방식으로 `com.aloc.sai.{도메인}`에 만듭니다.
