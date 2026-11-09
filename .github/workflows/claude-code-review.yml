@@ -1,0 +1,47 @@
+# .github/workflows/claude-code-review.yml
+# PR이 열리거나 커밋이 추가될 때 CLAUDE.md 기준으로 자동 리뷰합니다.
+# 사전 준비: 저장소 Settings > Secrets > Actions 에 ANTHROPIC_API_KEY 등록,
+#           Claude GitHub App(https://github.com/apps/claude) 설치
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+
+# 같은 PR에 커밋이 연속으로 올라오면 이전 리뷰는 취소 (비용 절약)
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            저장소 루트의 CLAUDE.md와 .github/claude-review.md를 읽고, claude-review.md의 지침을 그대로 따르세요.
+            순서:
+            1. gh pr view로 PR 설명을 읽고 목적과 "리뷰 받고 싶은 부분"을 파악하세요.
+            2. gh pr diff로 변경을 보고, Read/Grep으로 호출부·관련 Service·테스트까지 읽어 영향 범위를 확인하세요.
+            3. 변경된 도메인의 "도메인 규칙"을 기준으로 위반 여부를 확인하세요.
+            4. 구체적인 지적은 인라인 코멘트로, 마지막에 요약 코멘트 하나를 남기세요.
+          claude_args: |
+            --max-turns 15
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
