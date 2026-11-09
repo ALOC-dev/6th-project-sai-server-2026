@@ -1,4 +1,4 @@
-package com.aloc.sai.entity;
+package com.aloc.sai.chat;
 
 public enum MessageType {
     TEXT,

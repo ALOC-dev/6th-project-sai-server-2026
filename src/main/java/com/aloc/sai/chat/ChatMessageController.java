@@ -1,6 +1,6 @@
-package com.aloc.sai.controller;
+package com.aloc.sai.chat;
 
-import com.aloc.sai.dto.ChatMessageRequest;
+import com.aloc.sai.chat.dto.ChatMessageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;

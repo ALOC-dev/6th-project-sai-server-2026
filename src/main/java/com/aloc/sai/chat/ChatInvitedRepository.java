@@ -1,6 +1,5 @@
-package com.aloc.sai.repository;
+package com.aloc.sai.chat;
 
-import com.aloc.sai.entity.ChatInvite;
 import com.aloc.sai.user.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

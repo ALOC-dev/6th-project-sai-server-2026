@@ -1,10 +1,7 @@
-package com.aloc.sai.controller;
+package com.aloc.sai.chat;
 
-import com.aloc.sai.dto.ChatRoomResponse;
-import com.aloc.sai.dto.CreateChatRoomRequest;
-import com.aloc.sai.entity.ChatRoom;
-import com.aloc.sai.entity.CreateChatRoomResult;
-import com.aloc.sai.service.ChatRoomService;
+import com.aloc.sai.chat.dto.ChatRoomResponse;
+import com.aloc.sai.chat.dto.CreateChatRoomRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

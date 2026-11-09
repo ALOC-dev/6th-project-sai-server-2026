@@ -1,6 +1,6 @@
-package com.aloc.sai.dto;
+package com.aloc.sai.chat.dto;
 
-import com.aloc.sai.entity.ChatRoomType;
+import com.aloc.sai.chat.ChatRoomType;
 
 import java.time.LocalDateTime;
 import java.util.List;

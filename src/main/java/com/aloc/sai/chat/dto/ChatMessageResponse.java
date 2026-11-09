@@ -1,4 +1,4 @@
-package com.aloc.sai.dto;
+package com.aloc.sai.chat.dto;
 
 public record ChatMessageResponse(
         String code,

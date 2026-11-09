@@ -1,6 +1,5 @@
-package com.aloc.sai.repository;
+package com.aloc.sai.chat;
 
-import com.aloc.sai.entity.ChatMessage;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
