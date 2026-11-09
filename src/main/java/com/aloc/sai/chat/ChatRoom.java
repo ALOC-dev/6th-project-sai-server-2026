@@ -1,4 +1,4 @@
-package com.aloc.sai.entity;
+package com.aloc.sai.chat;
 
 import com.aloc.sai.user.User;
 import jakarta.persistence.*;

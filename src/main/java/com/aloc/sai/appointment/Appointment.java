@@ -1,5 +1,6 @@
-package com.aloc.sai.entity;
+package com.aloc.sai.appointment;
 
+import com.aloc.sai.chat.ChatRoom;
 import com.aloc.sai.user.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;

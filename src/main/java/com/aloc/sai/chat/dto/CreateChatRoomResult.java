@@ -1,6 +1,4 @@
-package com.aloc.sai.entity;
-
-import com.aloc.sai.dto.ChatRoomResponse;
+package com.aloc.sai.chat.dto;
 
 public record CreateChatRoomResult(ChatRoomResponse room, boolean created) {
 }

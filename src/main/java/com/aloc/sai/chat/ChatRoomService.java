@@ -1,12 +1,11 @@
-package com.aloc.sai.service;
+package com.aloc.sai.chat;
 
+import com.aloc.sai.chat.dto.CreateChatRoomResult;
 import com.aloc.sai.common.exception.ApiException;
-import com.aloc.sai.dto.ChatRoomResponse;
-import com.aloc.sai.dto.CreateChatRoomRequest;
-import com.aloc.sai.entity.*;
-import com.aloc.sai.repository.AppointmentRepository;
-import com.aloc.sai.repository.ChatInvitedRepository;
-import com.aloc.sai.repository.ChatRoomRepository;
+import com.aloc.sai.chat.dto.ChatRoomResponse;
+import com.aloc.sai.chat.dto.CreateChatRoomRequest;
+import com.aloc.sai.appointment.Appointment;
+import com.aloc.sai.appointment.AppointmentRepository;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import lombok.RequiredArgsConstructor;

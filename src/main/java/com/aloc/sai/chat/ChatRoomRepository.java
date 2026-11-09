@@ -1,8 +1,5 @@
-package com.aloc.sai.repository;
+package com.aloc.sai.chat;
 
-import com.aloc.sai.entity.ChatRoom;
-import com.aloc.sai.entity.ChatRoomStatus;
-import com.aloc.sai.entity.ChatRoomType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

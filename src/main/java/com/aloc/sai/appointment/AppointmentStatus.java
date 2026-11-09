@@ -1,4 +1,4 @@
-package com.aloc.sai.entity;
+package com.aloc.sai.appointment;
 
 public enum AppointmentStatus {
     RECRUITING,
