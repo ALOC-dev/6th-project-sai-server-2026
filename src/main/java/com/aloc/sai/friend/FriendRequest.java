@@ -45,10 +45,12 @@ public class FriendRequest {
     @Column(nullable = false, length = 20)
     private FriendRequestStatus requestStatus;
 
-    // 대기 중일 때만 "작은id:큰id" 값을 갖고, 처리하면 null로 비운다.
-    // UNIQUE 컬럼은 NULL을 여러 개 허용하므로 두 사용자 사이의 대기 중인 요청은 방향과 관계없이 하나만 생긴다.
+    // 두 사용자 사이의 관계가 살아 있는 동안(대기 중이거나, 수락되어 친구인 동안) "작은id:큰id" 값을 갖는다.
+    // 거절되거나 친구가 삭제되면 null로 비운다. UNIQUE 컬럼은 NULL을 여러 개 허용하므로
+    // 한 쌍에는 방향과 관계없이 "대기 중인 요청 또는 친구 관계"가 하나만 존재한다.
+    // 수락해도 값을 유지하기 때문에, 수락과 동시에 들어온 재요청도 이 제약에 걸린다.
     @Column(unique = true, length = 41)
-    private String pendingKey;
+    private String activePairKey;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
@@ -60,7 +62,7 @@ public class FriendRequest {
         this.requester = requester;
         this.receiver = receiver;
         this.requestStatus = FriendRequestStatus.PENDING;
-        this.pendingKey = pairKey(requester.getUserId(), receiver.getUserId());
+        this.activePairKey = pairKey(requester.getUserId(), receiver.getUserId());
     }
 
     public static String pairKey(Long userId, Long otherUserId) {
@@ -79,17 +81,20 @@ public class FriendRequest {
         return receiver.getUserId().equals(userId);
     }
 
+    // 친구 관계가 유지되는 동안 activePairKey를 그대로 둔다.
     public void accept(LocalDateTime now) {
-        respond(FriendRequestStatus.ACCEPTED, now);
+        this.requestStatus = FriendRequestStatus.ACCEPTED;
+        this.respondedAt = now;
     }
 
     public void reject(LocalDateTime now) {
-        respond(FriendRequestStatus.REJECTED, now);
+        this.requestStatus = FriendRequestStatus.REJECTED;
+        this.respondedAt = now;
+        this.activePairKey = null;
     }
 
-    private void respond(FriendRequestStatus status, LocalDateTime now) {
-        this.requestStatus = status;
-        this.respondedAt = now;
-        this.pendingKey = null;
+    // 친구가 삭제되면 같은 쌍이 다시 요청할 수 있도록 키를 비운다.
+    public void endFriendship() {
+        this.activePairKey = null;
     }
 }

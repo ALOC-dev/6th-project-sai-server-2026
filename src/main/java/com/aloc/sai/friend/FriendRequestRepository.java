@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FriendRequestRepository extends JpaRepository<FriendRequest, Long> {
-    Optional<FriendRequest> findByPendingKey(String pendingKey);
+    Optional<FriendRequest> findByActivePairKey(String activePairKey);
 
     // 같은 요청을 동시에 수락·거절해도 한 번만 처리되도록 행을 잠근다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)

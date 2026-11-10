@@ -216,6 +216,29 @@ class FriendTest {
     }
 
     @Test
+    void 수락_직후_같은_쌍이_다시_요청하면_409를_반환한다() throws Exception {
+        befriend(tokenA, idB, tokenB);
+
+        sendRequest(tokenA, idB).andExpect(status().isConflict());
+        sendRequest(tokenB, idA).andExpect(status().isConflict());
+
+        mockMvc.perform(get("/api/v1/friend-requests").header("Authorization", bearer(tokenA)))
+                .andExpect(jsonPath("$.received.length()").value(0))
+                .andExpect(jsonPath("$.sent.length()").value(0));
+    }
+
+    // 수락과 재요청이 동시에 와서 서비스 검사를 둘 다 통과한 상황을 재현한다. 수락된 요청이 키를 유지하므로 DB가 막는다.
+    @Test
+    void 친구인_쌍에는_DB_제약으로_새_요청을_만들_수_없다() throws Exception {
+        befriend(tokenA, idB, tokenB);
+        User a = userRepository.findById(idA).orElseThrow();
+        User b = userRepository.findById(idB).orElseThrow();
+
+        assertThatThrownBy(() -> friendRequestRepository.saveAndFlush(new FriendRequest(b, a)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void 받은_사람이_아니면_403을_반환한다() throws Exception {
         Long requestId = createRequest(tokenA, idB);
 
@@ -285,6 +308,23 @@ class FriendTest {
         assertThat(friendshipRepository.count()).isZero();
         assertThat(friendRequestRepository.count()).isZero();
         friends(tokenB).andExpect(jsonPath("$.friends.length()").value(0));
+        mockMvc.perform(get("/api/v1/friend-requests").header("Authorization", bearer(tokenC)))
+                .andExpect(jsonPath("$.received.length()").value(0))
+                .andExpect(jsonPath("$.sent.length()").value(0));
+    }
+
+    @Test
+    void 탈퇴한_사용자가_보낸_요청은_상대의_받은_요청에서_사라진다() throws Exception {
+        createRequest(tokenA, idB);
+
+        mockMvc.perform(delete("/api/v1/users/me")
+                        .header("Authorization", bearer(tokenA))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmation\":\"DELETE\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/friend-requests").header("Authorization", bearer(tokenB)))
+                .andExpect(jsonPath("$.received.length()").value(0));
     }
 
     @Test

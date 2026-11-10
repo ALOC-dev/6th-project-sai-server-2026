@@ -101,9 +101,9 @@ public class UserService {
         return new NicknameCheckResponse(nickname, isNicknameAvailable(findUser(userId), nickname));
     }
 
-    // 사용자를 참조하는 테이블이 생기면 여기서 함께 정리해야 한다.
-    // user를 참조하는 도메인은 대부분 UserService에 의존하므로, 순환 의존을 피하려고 직접 호출하지 않고
-    // UserWithdrawEvent를 받아 각자 정리한다. 이벤트는 같은 트랜잭션 안에서 사용자 행을 지우기 전에 처리된다.
+    // 사용자를 참조하는 데이터는 각 도메인이 UserWithdrawEvent 리스너로 정리한다.
+    // user를 참조하는 도메인은 대부분 UserService에 의존하므로, 순환 의존을 피하려고 직접 호출하지 않는다.
+    // 리스너는 같은 트랜잭션에서 사용자 행을 지우기 전에 실행되며, DB 정리만 하고 예외를 삼키지 않아야 한다(UserWithdrawEvent 참고).
     @Transactional
     public void withdraw(Long userId, String confirmation) {
         if (!WITHDRAW_CONFIRMATION.equals(confirmation)) {

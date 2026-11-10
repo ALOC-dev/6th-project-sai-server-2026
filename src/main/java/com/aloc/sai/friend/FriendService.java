@@ -40,17 +40,18 @@ public class FriendService {
         if (areFriends(userId, receiverId)) {
             throw new ApiException(HttpStatus.CONFLICT, "이미 친구입니다.");
         }
-        friendRequestRepository.findByPendingKey(FriendRequest.pairKey(userId, receiverId))
-                .ifPresent(pending -> {
-                    throw pendingRequestConflict(pending, userId);
+        friendRequestRepository.findByActivePairKey(FriendRequest.pairKey(userId, receiverId))
+                .ifPresent(active -> {
+                    throw activePairConflict(active, userId);
                 });
 
-        // 동시에 서로 요청하면 위 검사를 둘 다 통과할 수 있다. 그때는 pendingKey 유니크 제약이 하나만 남긴다.
+        // 동시에 서로 요청하거나, 수락과 재요청이 겹치면 위 검사를 통과할 수 있다.
+        // 그때는 activePairKey 유니크 제약이 막는다(수락된 요청도 키를 유지한다).
         try {
             FriendRequest request = friendRequestRepository.saveAndFlush(new FriendRequest(requester, receiver));
             return FriendRequestCreateResponse.from(request);
         } catch (DataIntegrityViolationException e) {
-            throw new ApiException(HttpStatus.CONFLICT, "이미 대기 중인 친구 요청이 있습니다.", e);
+            throw new ApiException(HttpStatus.CONFLICT, "이미 친구이거나 대기 중인 친구 요청이 있습니다.", e);
         }
     }
 
@@ -105,6 +106,8 @@ public class FriendService {
     public void deleteFriend(Long userId, Long friendId) {
         Friendship friendship = findFriendship(userId, friendId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "친구 관계를 찾을 수 없습니다."));
+        friendRequestRepository.findByActivePairKey(FriendRequest.pairKey(userId, friendId))
+                .ifPresent(FriendRequest::endFriendship);
         friendshipRepository.delete(friendship);
     }
 
@@ -115,7 +118,7 @@ public class FriendService {
                 Math.min(userId, otherUserId), Math.max(userId, otherUserId));
     }
 
-    // 탈퇴 트랜잭션 안에서 사용자 행을 지우기 전에 실행된다.
+    // 탈퇴 트랜잭션 안에서 사용자 행을 지우기 전에 실행된다. DB 정리만 하고 예외를 삼키지 않는다.
     @EventListener
     @Transactional
     public void deleteAllOnWithdraw(UserWithdrawEvent event) {
@@ -129,8 +132,11 @@ public class FriendService {
     }
 
     // 상대가 먼저 보낸 요청이 있으면 그 요청을 수락하도록 안내한다.
-    private ApiException pendingRequestConflict(FriendRequest pending, Long userId) {
-        if (pending.isSentBy(userId)) {
+    private ApiException activePairConflict(FriendRequest active, Long userId) {
+        if (!active.isPending()) {
+            return new ApiException(HttpStatus.CONFLICT, "이미 친구입니다.");
+        }
+        if (active.isSentBy(userId)) {
             return new ApiException(HttpStatus.CONFLICT, "이미 친구 요청을 보냈습니다.");
         }
         return new ApiException(HttpStatus.CONFLICT, "상대가 보낸 친구 요청이 있습니다. 받은 요청에서 수락해 주세요.");
