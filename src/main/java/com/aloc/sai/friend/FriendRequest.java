@@ -1,0 +1,95 @@
+package com.aloc.sai.friend;
+
+import com.aloc.sai.user.User;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+// 처리한 요청도 알림의 수락/거절 로그에 쓰이므로 지우지 않고 상태만 바꾼다.
+@Entity
+@Table(name = "friend_requests", indexes = {
+        @Index(name = "idx_friend_request_requester_status", columnList = "requester_id, requestStatus"),
+        @Index(name = "idx_friend_request_receiver_status", columnList = "receiver_id, requestStatus")
+})
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class FriendRequest {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long friendRequestId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "requester_id", nullable = false)
+    private User requester;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "receiver_id", nullable = false)
+    private User receiver;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private FriendRequestStatus requestStatus;
+
+    // 대기 중일 때만 "작은id:큰id" 값을 갖고, 처리하면 null로 비운다.
+    // UNIQUE 컬럼은 NULL을 여러 개 허용하므로 두 사용자 사이의 대기 중인 요청은 방향과 관계없이 하나만 생긴다.
+    @Column(unique = true, length = 41)
+    private String pendingKey;
+
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    private LocalDateTime respondedAt;
+
+    public FriendRequest(User requester, User receiver) {
+        this.requester = requester;
+        this.receiver = receiver;
+        this.requestStatus = FriendRequestStatus.PENDING;
+        this.pendingKey = pairKey(requester.getUserId(), receiver.getUserId());
+    }
+
+    public static String pairKey(Long userId, Long otherUserId) {
+        return Math.min(userId, otherUserId) + ":" + Math.max(userId, otherUserId);
+    }
+
+    public boolean isPending() {
+        return requestStatus == FriendRequestStatus.PENDING;
+    }
+
+    public boolean isSentBy(Long userId) {
+        return requester.getUserId().equals(userId);
+    }
+
+    public boolean isReceivedBy(Long userId) {
+        return receiver.getUserId().equals(userId);
+    }
+
+    public void accept(LocalDateTime now) {
+        respond(FriendRequestStatus.ACCEPTED, now);
+    }
+
+    public void reject(LocalDateTime now) {
+        respond(FriendRequestStatus.REJECTED, now);
+    }
+
+    private void respond(FriendRequestStatus status, LocalDateTime now) {
+        this.requestStatus = status;
+        this.respondedAt = now;
+        this.pendingKey = null;
+    }
+}
