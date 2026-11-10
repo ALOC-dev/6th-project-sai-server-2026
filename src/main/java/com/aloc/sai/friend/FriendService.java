@@ -1,15 +1,19 @@
 package com.aloc.sai.friend;
 
 import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.friend.dto.FriendInviteResponse;
 import com.aloc.sai.friend.dto.FriendListResponse;
 import com.aloc.sai.friend.dto.FriendRequestAction;
 import com.aloc.sai.friend.dto.FriendRequestCreateResponse;
 import com.aloc.sai.friend.dto.FriendRequestListResponse;
 import com.aloc.sai.friend.dto.FriendRequestRespondResponse;
+import com.aloc.sai.friend.dto.FriendSearchResponse;
+import com.aloc.sai.friend.dto.FriendshipStatus;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserService;
 import com.aloc.sai.user.UserWithdrawEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -19,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -27,6 +32,47 @@ public class FriendService {
     private final UserService userService;
     private final FriendRequestRepository friendRequestRepository;
     private final FriendshipRepository friendshipRepository;
+
+    // 초대 링크 도메인은 FE·딥링크 설정과 함께 확정되므로 설정값으로 둔다.
+    @Value("${friend.invite-base-url}")
+    private String inviteBaseUrl;
+
+    // 닉네임은 완전 일치로 찾는다. 닉네임 규칙과 같게 앞뒤 공백은 제거한다.
+    @Transactional(readOnly = true)
+    public FriendSearchResponse searchByNickname(Long userId, String nickname) {
+        String keyword = nickname == null ? "" : nickname.strip();
+        if (keyword.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "검색할 닉네임을 입력해 주세요.");
+        }
+
+        User target = userService.findByNickname(keyword)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "해당 닉네임의 사용자를 찾을 수 없습니다."));
+        if (target.getUserId().equals(userId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "자기 자신은 친구로 추가할 수 없습니다.");
+        }
+        return toSearchResponse(userId, target);
+    }
+
+    // 초대 링크로 앱에 들어왔을 때 링크의 친구 코드로 상대를 찾는다.
+    @Transactional(readOnly = true)
+    public FriendSearchResponse findByInviteCode(Long userId, String friendCode) {
+        String code = friendCode.strip().toUpperCase(Locale.ROOT);
+        User target = userService.findByFriendCode(code)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "초대 링크의 사용자를 찾을 수 없습니다."));
+        if (target.getUserId().equals(userId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "내 초대 링크입니다. 친구에게 공유해 주세요.");
+        }
+        return toSearchResponse(userId, target);
+    }
+
+    // 친구 코드는 바뀌지 않으므로 닉네임을 바꿔도 링크는 그대로다.
+    // 설정값이 "/"로 끝나도 "//"가 생기지 않도록 끝의 "/"를 지우고 붙인다.
+    @Transactional(readOnly = true)
+    public FriendInviteResponse getMyInvite(Long userId) {
+        User user = userService.getUser(userId);
+        String baseUrl = inviteBaseUrl.replaceAll("/+$", "");
+        return new FriendInviteResponse(user.getNickname(), user.getFriendCode(), baseUrl + "/" + user.getFriendCode());
+    }
 
     @Transactional
     public FriendRequestCreateResponse sendRequest(Long userId, Long receiverId) {
@@ -132,6 +178,19 @@ public class FriendService {
     private Optional<Friendship> findFriendship(Long userId, Long otherUserId) {
         return friendshipRepository.findByUser1UserIdAndUser2UserId(
                 Math.min(userId, otherUserId), Math.max(userId, otherUserId));
+    }
+
+    private FriendSearchResponse toSearchResponse(Long userId, User target) {
+        if (areFriends(userId, target.getUserId())) {
+            return FriendSearchResponse.of(target, FriendshipStatus.FRIEND, null);
+        }
+        return friendRequestRepository.findByActivePairKey(FriendRequest.pairKey(userId, target.getUserId()))
+                .filter(FriendRequest::isPending)
+                .map(pending -> FriendSearchResponse.of(
+                        target,
+                        pending.isSentBy(userId) ? FriendshipStatus.REQUEST_SENT : FriendshipStatus.REQUEST_RECEIVED,
+                        pending.getFriendRequestId()))
+                .orElseGet(() -> FriendSearchResponse.of(target, FriendshipStatus.NONE, null));
     }
 
     private ApiException retryLater(DataIntegrityViolationException e) {

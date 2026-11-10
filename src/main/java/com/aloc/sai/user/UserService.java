@@ -122,6 +122,17 @@ public class UserService {
         return findUser(userId);
     }
 
+    // 다른 도메인이 닉네임(완전 일치)이나 친구 코드로 사용자를 찾을 때 쓴다. 없을 때의 응답은 호출한 쪽이 정한다.
+    @Transactional(readOnly = true)
+    public Optional<User> findByNickname(String nickname) {
+        return userRepository.findByNickname(nickname);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<User> findByFriendCode(String friendCode) {
+        return userRepository.findByFriendCode(friendCode);
+    }
+
     private User findUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));

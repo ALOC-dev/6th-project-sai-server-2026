@@ -26,4 +26,7 @@ jwt:
   refresh-expiration-ms: 1209600000  # 14일
 kakao:
   user-info-uri: https://kapi.kakao.com/v2/user/me
+friend:
+  # 초대 링크 도메인은 FE와 딥링크 설정을 확정하면 바꾼다.
+  invite-base-url: https://sai.app/invite
 
