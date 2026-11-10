@@ -37,6 +37,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class FriendController {
     private static final String UNAUTHORIZED_EXAMPLE = """
             {"success": false, "message": "인증이 필요합니다.", "code": 401}""";
+    private static final String RETRY_LATER_EXAMPLE = """
+            {"success": false, "message": "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.", "code": 409}""";
 
     private final FriendService friendService;
 
@@ -65,7 +67,8 @@ public class FriendController {
                                     @ExampleObject(name = "내가 이미 보냄", value = """
                                             {"success": false, "message": "이미 친구 요청을 보냈습니다.", "code": 409}"""),
                                     @ExampleObject(name = "상대가 먼저 보냄", value = """
-                                            {"success": false, "message": "상대가 보낸 친구 요청이 있습니다. 받은 요청에서 수락해 주세요.", "code": 409}""")
+                                            {"success": false, "message": "상대가 보낸 친구 요청이 있습니다. 받은 요청에서 수락해 주세요.", "code": 409}"""),
+                                    @ExampleObject(name = "동시 요청 충돌", value = RETRY_LATER_EXAMPLE)
                             }))
     })
     @PostMapping("/friend-requests")
@@ -112,10 +115,13 @@ public class FriendController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = """
                                     {"success": false, "message": "친구 요청을 찾을 수 없습니다.", "code": 404}"""))),
-            @ApiResponse(responseCode = "409", description = "이미 처리된 요청 (PENDING 아님)",
+            @ApiResponse(responseCode = "409", description = "이미 처리된 요청 (PENDING 아님) 또는 동시 처리 충돌",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = """
-                                    {"success": false, "message": "이미 처리된 친구 요청입니다.", "code": 409}""")))
+                            examples = {
+                                    @ExampleObject(name = "이미 처리됨", value = """
+                                            {"success": false, "message": "이미 처리된 친구 요청입니다.", "code": 409}"""),
+                                    @ExampleObject(name = "동시 처리 충돌", value = RETRY_LATER_EXAMPLE)
+                            }))
     })
     @PatchMapping("/friend-requests/{friendRequestId}")
     public FriendRequestRespondResponse respond(

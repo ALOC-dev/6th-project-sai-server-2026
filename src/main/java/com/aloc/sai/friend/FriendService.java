@@ -47,11 +47,12 @@ public class FriendService {
 
         // 동시에 서로 요청하거나, 수락과 재요청이 겹치면 위 검사를 통과할 수 있다.
         // 그때는 activePairKey 유니크 제약이 막는다(수락된 요청도 키를 유지한다).
+        // 제약 위반의 원인(유니크 충돌, 그 사이 상대 탈퇴로 인한 FK 위반 등)을 이 트랜잭션에서 다시 조회해 가릴 수 없으므로 중립적으로 안내한다.
         try {
             FriendRequest request = friendRequestRepository.saveAndFlush(new FriendRequest(requester, receiver));
             return FriendRequestCreateResponse.from(request);
         } catch (DataIntegrityViolationException e) {
-            throw new ApiException(HttpStatus.CONFLICT, "이미 친구이거나 대기 중인 친구 요청이 있습니다.", e);
+            throw retryLater(e);
         }
     }
 
@@ -87,7 +88,7 @@ public class FriendService {
                     new Friendship(request.getRequester(), request.getReceiver()));
             return FriendRequestRespondResponse.of(request, friendship.getFriendshipId());
         } catch (DataIntegrityViolationException e) {
-            throw new ApiException(HttpStatus.CONFLICT, "이미 친구입니다.", e);
+            throw retryLater(e);
         }
     }
 
@@ -102,6 +103,8 @@ public class FriendService {
         return new FriendListResponse(friends);
     }
 
+    // 친구 관계 삭제는 반드시 이 메서드(또는 탈퇴 정리)를 거쳐야 한다.
+    // friendships 행만 지우고 요청의 activePairKey를 비우지 않으면 그 쌍은 다시 친구 요청을 보낼 수 없게 된다.
     @Transactional
     public void deleteFriend(Long userId, Long friendId) {
         Friendship friendship = findFriendship(userId, friendId)
@@ -129,6 +132,10 @@ public class FriendService {
     private Optional<Friendship> findFriendship(Long userId, Long otherUserId) {
         return friendshipRepository.findByUser1UserIdAndUser2UserId(
                 Math.min(userId, otherUserId), Math.max(userId, otherUserId));
+    }
+
+    private ApiException retryLater(DataIntegrityViolationException e) {
+        return new ApiException(HttpStatus.CONFLICT, "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.", e);
     }
 
     // 상대가 먼저 보낸 요청이 있으면 그 요청을 수락하도록 안내한다.

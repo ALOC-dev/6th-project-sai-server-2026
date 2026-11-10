@@ -20,6 +20,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 // user1은 항상 id가 작은 쪽이다. 그래서 두 사용자 사이의 친구 관계는 방향과 관계없이 한 행만 생긴다.
+// 삭제는 반드시 FriendService.deleteFriend(또는 탈퇴 정리)를 거친다. 수락된 요청의 activePairKey도 함께 비워야 재요청이 가능하다.
 @Entity
 @Table(name = "friendships",
         uniqueConstraints = @UniqueConstraint(name = "uk_friendship_users", columnNames = {"user1_id", "user2_id"}),

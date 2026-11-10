@@ -3,6 +3,8 @@ package com.aloc.sai.friend;
 import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.auth.kakao.KakaoClient;
 import com.aloc.sai.auth.kakao.KakaoUserInfo;
+import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.friend.dto.FriendRequestAction;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -12,11 +14,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -239,6 +250,30 @@ class FriendTest {
     }
 
     @Test
+    void 서로_동시에_요청하면_하나만_생성된다() throws Exception {
+        List<Outcome> outcomes = runConcurrently(
+                () -> friendService.sendRequest(idA, idB),
+                () -> friendService.sendRequest(idB, idA));
+
+        assertThat(outcomes).containsExactlyInAnyOrder(Outcome.SUCCESS, Outcome.CONFLICT);
+        assertThat(friendRequestRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 같은_요청을_동시에_수락하고_거절하면_하나만_처리된다() throws Exception {
+        Long requestId = createRequest(tokenA, idB);
+
+        List<Outcome> outcomes = runConcurrently(
+                () -> friendService.respond(idB, requestId, FriendRequestAction.ACCEPT),
+                () -> friendService.respond(idB, requestId, FriendRequestAction.REJECT));
+
+        assertThat(outcomes).containsExactlyInAnyOrder(Outcome.SUCCESS, Outcome.CONFLICT);
+        FriendRequest request = friendRequestRepository.findById(requestId).orElseThrow();
+        assertThat(friendshipRepository.count())
+                .isEqualTo(request.getRequestStatus() == FriendRequestStatus.ACCEPTED ? 1 : 0);
+    }
+
+    @Test
     void 받은_사람이_아니면_403을_반환한다() throws Exception {
         Long requestId = createRequest(tokenA, idB);
 
@@ -331,6 +366,41 @@ class FriendTest {
     void 인증_없이_요청하면_401을_반환한다() throws Exception {
         mockMvc.perform(get("/api/v1/friends")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/friend-requests")).andExpect(status().isUnauthorized());
+    }
+
+    private enum Outcome { SUCCESS, CONFLICT }
+
+    // 두 작업을 최대한 같은 순간에 시작시키고 각각의 결과(성공 또는 409)를 모은다.
+    private List<Outcome> runConcurrently(Runnable first, Runnable second) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<Outcome>> futures = new ArrayList<>();
+            for (Runnable task : List.of(first, second)) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    try {
+                        task.run();
+                        return Outcome.SUCCESS;
+                    } catch (ApiException e) {
+                        assertThat(e.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                        return Outcome.CONFLICT;
+                    }
+                }));
+            }
+            ready.await();
+            start.countDown();
+
+            List<Outcome> outcomes = new ArrayList<>();
+            for (Future<Outcome> future : futures) {
+                outcomes.add(future.get(10, TimeUnit.SECONDS));
+            }
+            return outcomes;
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private void befriend(String requesterToken, Long receiverId, String receiverToken) throws Exception {
