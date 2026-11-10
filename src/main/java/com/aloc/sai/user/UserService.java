@@ -7,6 +7,7 @@ import com.aloc.sai.user.dto.NicknameCheckResponse;
 import com.aloc.sai.user.dto.UserProfileResponse;
 import com.aloc.sai.user.dto.UserUpdateRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class UserService {
     private final SecureRandom random = new SecureRandom();
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 트랜잭션을 걸지 않는다. 동시 가입으로 저장이 실패해도 롤백 전용 상태가 되지 않고 바로 다시 조회할 수 있게 하기 위해서다.
     public KakaoUserResult findOrRegisterKakaoUser(Long kakaoId, String kakaoName, String profileImageUrl) {
@@ -99,7 +101,9 @@ public class UserService {
         return new NicknameCheckResponse(nickname, isNicknameAvailable(findUser(userId), nickname));
     }
 
-    // 사용자를 참조하는 테이블이 생기면 여기서 함께 정리해야 한다.
+    // 사용자를 참조하는 데이터는 각 도메인이 UserWithdrawEvent 리스너로 정리한다.
+    // user를 참조하는 도메인은 대부분 UserService에 의존하므로, 순환 의존을 피하려고 직접 호출하지 않는다.
+    // 리스너는 같은 트랜잭션에서 사용자 행을 지우기 전에 실행되며, DB 정리만 하고 예외를 삼키지 않아야 한다(UserWithdrawEvent 참고).
     @Transactional
     public void withdraw(Long userId, String confirmation) {
         if (!WITHDRAW_CONFIRMATION.equals(confirmation)) {
@@ -108,7 +112,14 @@ public class UserService {
 
         User user = findUser(userId);
         refreshTokenRepository.deleteByUserId(userId);
+        eventPublisher.publishEvent(new UserWithdrawEvent(userId));
         userRepository.delete(user);
+    }
+
+    // 다른 도메인이 사용자를 조회할 때 쓴다. 없으면 404다.
+    @Transactional(readOnly = true)
+    public User getUser(Long userId) {
+        return findUser(userId);
     }
 
     private User findUser(Long userId) {
