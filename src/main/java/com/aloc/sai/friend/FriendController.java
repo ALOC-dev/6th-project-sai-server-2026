@@ -1,7 +1,9 @@
 package com.aloc.sai.friend;
 
 import com.aloc.sai.common.exception.ErrorResponse;
+import com.aloc.sai.friend.dto.FriendInviteResponse;
 import com.aloc.sai.friend.dto.FriendListResponse;
+import com.aloc.sai.friend.dto.FriendSearchResponse;
 import com.aloc.sai.friend.dto.FriendRequestCreateRequest;
 import com.aloc.sai.friend.dto.FriendRequestCreateResponse;
 import com.aloc.sai.friend.dto.FriendRequestListResponse;
@@ -30,7 +32,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Friend", description = "친구 요청·수락·거절, 친구 목록·삭제 API")
+@Tag(name = "Friend", description = "사용자 검색·초대 링크, 친구 요청·수락·거절, 친구 목록·삭제 API")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -41,6 +43,75 @@ public class FriendController {
             {"success": false, "message": "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.", "code": 409}""";
 
     private final FriendService friendService;
+
+    @Operation(summary = "닉네임으로 사용자 검색",
+            description = "친구 추가 화면에서 닉네임을 직접 입력해 사용자를 찾습니다. 앞뒤 공백을 제거한 뒤 완전 일치로 찾습니다. "
+                    + "friendshipStatus로 나와의 관계(NONE / REQUEST_SENT / REQUEST_RECEIVED / FRIEND)를 함께 반환하며, "
+                    + "대기 중인 요청이 있으면 friendRequestId도 반환합니다. 거절된 요청만 남아 있으면 NONE입니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "검색 성공"),
+            @ApiResponse(responseCode = "400", description = "닉네임 누락 또는 본인 닉네임 검색",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "닉네임 누락", value = """
+                                            {"success": false, "message": "검색할 닉네임을 입력해 주세요.", "code": 400}"""),
+                                    @ExampleObject(name = "본인 검색", value = """
+                                            {"success": false, "message": "자기 자신은 친구로 추가할 수 없습니다.", "code": 400}""")
+                            })),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "해당 닉네임의 사용자 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "해당 닉네임의 사용자를 찾을 수 없습니다.", "code": 404}""")))
+    })
+    @GetMapping("/users/search")
+    public FriendSearchResponse searchByNickname(
+            @LoginUserId Long userId,
+            @Parameter(description = "검색할 닉네임 (완전 일치)", example = "민수") @RequestParam(required = false) String nickname
+    ) {
+        return friendService.searchByNickname(userId, nickname);
+    }
+
+    @Operation(summary = "초대 링크로 사용자 조회",
+            description = "초대 링크(https://{도메인}/invite/{friendCode})로 앱에 들어왔을 때 앱이 링크의 친구 코드로 호출합니다. "
+                    + "응답은 닉네임 검색과 같아 같은 프로필 화면을 재사용합니다. 친구 코드는 대소문자를 구분하지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "본인 링크로 진입",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "내 초대 링크입니다. 친구에게 공유해 주세요.", "code": 400}"""))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "해당 친구 코드의 사용자 없음 (탈퇴했거나 잘못된 링크)",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "초대 링크의 사용자를 찾을 수 없습니다.", "code": 404}""")))
+    })
+    @GetMapping("/friend-invites/{friendCode}")
+    public FriendSearchResponse findByInviteCode(
+            @LoginUserId Long userId,
+            @Parameter(description = "초대 링크에 들어 있는 친구 코드", example = "K7Q2M9XA") @PathVariable String friendCode
+    ) {
+        return friendService.findByInviteCode(userId, friendCode);
+    }
+
+    @Operation(summary = "내 초대 링크 정보 조회",
+            description = "친구 추가 화면의 '링크 공유'에서 호출합니다. 친구 코드 기반 링크라 닉네임을 바꿔도 기존 링크가 유지됩니다. "
+                    + "링크 도메인은 FE·딥링크 설정과 함께 확정할 예정이며 서버 설정값(friend.invite-base-url)으로 바뀝니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE)))
+    })
+    @GetMapping("/friend-invites/me")
+    public FriendInviteResponse getMyInvite(@LoginUserId Long userId) {
+        return friendService.getMyInvite(userId);
+    }
 
     @Operation(summary = "친구 요청 전송",
             description = "닉네임 검색이나 초대 링크로 찾은 사용자에게 친구 요청을 보냅니다. "
