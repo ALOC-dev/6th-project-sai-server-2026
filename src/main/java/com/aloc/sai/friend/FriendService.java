@@ -66,10 +66,12 @@ public class FriendService {
     }
 
     // 친구 코드는 바뀌지 않으므로 닉네임을 바꿔도 링크는 그대로다.
+    // 설정값이 "/"로 끝나도 "//"가 생기지 않도록 끝의 "/"를 지우고 붙인다.
     @Transactional(readOnly = true)
     public FriendInviteResponse getMyInvite(Long userId) {
         User user = userService.getUser(userId);
-        return new FriendInviteResponse(user.getNickname(), user.getFriendCode(), inviteBaseUrl + "/" + user.getFriendCode());
+        String baseUrl = inviteBaseUrl.replaceAll("/+$", "");
+        return new FriendInviteResponse(user.getNickname(), user.getFriendCode(), baseUrl + "/" + user.getFriendCode());
     }
 
     @Transactional
