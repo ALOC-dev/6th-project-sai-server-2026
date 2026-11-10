@@ -94,10 +94,10 @@ public class FriendService {
     // 공강 필터(available)는 시간표 도메인이 생기면 적용한다. 지금은 모든 친구의 오늘 수업이 비어 있어 전원이 공강이다.
     @Transactional(readOnly = true)
     public FriendListResponse getFriends(Long userId, boolean available) {
-        List<FriendListResponse.Item> friends = friendshipRepository.findAllWithUsersByUserId(userId).stream()
-                .map(friendship -> FriendListResponse.Item.of(
+        List<FriendListResponse.FriendItem> friends = friendshipRepository.findAllWithUsersByUserId(userId).stream()
+                .map(friendship -> FriendListResponse.FriendItem.of(
                         friendship.getFriendOf(userId), friendship.getFriendshipId(), List.of()))
-                .sorted(Comparator.comparing(FriendListResponse.Item::nickname))
+                .sorted(Comparator.comparing(FriendListResponse.FriendItem::nickname))
                 .toList();
         return new FriendListResponse(friends);
     }
