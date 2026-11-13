@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
@@ -11,9 +12,11 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
             """
         select ci
         from Appointment ci
-        where ci.chatRoom.chatRoomId=:chatRoomId 
+        where ci.chatRoom.chatRoomId=:chatRoomId
         """
     )
     Optional<Appointment> findByChatRoom_ChatRoomId(@Param("chatRoomId") Long chatRoomId);
+
+    List<Appointment> findAllByUser_UserId(Long userId);
 }
 

@@ -7,7 +7,10 @@ import com.aloc.sai.appointment.Appointment;
 import com.aloc.sai.friend.FriendService;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserService;
+import com.aloc.sai.user.UserWithdrawEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +31,7 @@ public class ChatRoomService {
     private static final int MIN_MEMBERS = 2;
 
     private final ChatRoomRepository chatRoomRepository;
-    private final ChatInvitedRepository chatInvitedRepository;
+    private final ChatInviteRepository chatInvitedRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserService userService;
     private final AppointmentService appointmentService;
@@ -129,7 +132,7 @@ public class ChatRoomService {
         if (room.getType() == ChatRoomType.DIRECT) {
             throw badRequest("1:1 채팅방은 이름을 변경할 수 없습니다.");
         }
-        if (room.getStatus() == ChatRoomStatus.CLOSED) {
+        if (room.isClosed()) {
             throw new ApiException(HttpStatus.CONFLICT, "종료된 채팅방입니다.");
         }
         if(!room.isHost(userId)){
@@ -156,16 +159,16 @@ public class ChatRoomService {
 
     private ChatRoomListResponse.ChatRoomSummary toSummary(ChatRoom room, Long userId, Long lastReadId){
         Long roomId = room.getChatRoomId();
-        int memberCount=(int) chatInvitedRepository.countByChatRoomId(roomId);
+        int memberCount=(int) chatInvitedRepository.countByChatRoom_ChatRoomId(roomId);
 
         ChatRoomListResponse.LastMessage lastMessage = chatMessageRepository
-                .findTopByChatRoomIdOrderByChatMessagesIdDesc(roomId)
+                .findTopByChatRoom_ChatRoomIdOrderByChatMessagesIdDesc(roomId)
                 .map(m -> new ChatRoomListResponse.LastMessage(m.getType(), m.getMessage(), m.getSendAt()))
                 .orElse(null);
 
         long readId = (lastReadId == null) ? 0L : lastReadId;
         int unreadCount = (int) chatMessageRepository
-                .countByChatRoomIdAndChatMessagesIdGreaterThan(roomId, readId);
+                .countByChatRoom_ChatRoomIdAndChatMessagesIdGreaterThan(roomId, readId);
 
         ChatRoomListResponse.Opponent opponent=null;
         if(room.getType()==ChatRoomType.DIRECT){
@@ -181,8 +184,8 @@ public class ChatRoomService {
     }
 
     private boolean matchesStatus(ChatRoom room, String status) {
-        if (status == null || status.equals("ACTIVE")) return room.getStatus() == ChatRoomStatus.ACTIVE;
-        if (status.equals("CLOSED")) return room.getStatus() == ChatRoomStatus.CLOSED;
+        if (status == null || status.equals("ACTIVE")) return !room.isClosed();
+        if (status.equals("CLOSED")) return room.isClosed();
         if (status.equals("ALL")) return true;
         throw new ApiException(HttpStatus.BAD_REQUEST, "채팅방 상태 값이 올바르지 않습니다.");
     }
@@ -208,7 +211,7 @@ public class ChatRoomService {
         }
 
         //방장
-        Long hostId=(room.getType()==ChatRoomType.DIRECT)? null: room.getHost().getUserId();
+        Long hostId=(room.getType()==ChatRoomType.DIRECT || room.getHost()==null)? null: room.getHost().getUserId();
 
         //참여자 목록
         List<ChatRoomDetailResponse.Member> members=invites.stream()
@@ -242,6 +245,7 @@ public class ChatRoomService {
 
     private boolean canViewAsFriend(ChatRoom room, Long userId){
         return room.getType()==ChatRoomType.PUBLIC
+                && room.getHost()!=null
                 && friendService.areFriends(userId, room.getHost().getUserId());
     }
 
@@ -251,8 +255,14 @@ public class ChatRoomService {
         ChatRoom room=chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
 
-        //참여자
-        List<ChatInvite> invites = chatInvitedRepository.findAllWithUserByChatRoomId(chatRoomId);
+        leave(room, userId);
+
+        //TODO:채팅방 나가는 알림
+    }
+
+    //참여 정보를 지우고, 남은 사람이 없으면 방 종료, 방장이 나가면 남은 사람에게 넘김
+    private void leave(ChatRoom room, Long userId){
+        List<ChatInvite> invites = chatInvitedRepository.findAllWithUserByChatRoomId(room.getChatRoomId());
         ChatInvite myInvite = invites.stream()
                 .filter(ci -> ci.getUser().getUserId().equals(userId))
                 .findFirst()
@@ -271,12 +281,35 @@ public class ChatRoomService {
             return;
         }
 
-        //방장이 나가면 남은 사람에게 넘김 (DIRECT는 방장 개념 없음)
+        //방장이 나가면 남은 사람에게 방장과 약속 주인을 함께 넘김 (DIRECT는 방장 개념 없음)
         if (room.getType() != ChatRoomType.DIRECT && room.isHost(userId)) {
-            room.changeHost(remaining.get(0).getUser());
+            User newHost = remaining.get(0).getUser();
+            room.changeHost(newHost);
+            appointmentService.changeHost(room.getChatRoomId(), newHost);
         }
+    }
 
-        //TODO:채팅방 나가는 알림
+    // 탈퇴 트랜잭션 안에서 사용자 행을 지우기 전에 실행된다. DB 정리만 하고 예외를 삼키지 않는다.
+    // 약속 정리(AppointmentService, Order 2)가 새 방장을 알 수 있도록 먼저 실행한다.
+    @EventListener
+    @Order(1)
+    @Transactional
+    public void cleanUpOnWithdraw(UserWithdrawEvent event){
+        Long userId = event.userId();
+        //참여 중인 방은 나가기와 같은 규칙으로 정리
+        for (ChatInvite invite : chatInvitedRepository.findAllByUserId(userId)) {
+            leave(invite.getChatRoom(), userId);
+        }
+        //이미 나갔지만 방장으로 남아 있는 방(마지막 참여자로 나가 종료된 방 등)
+        chatRoomRepository.findAllByHost_UserId(userId).forEach(ChatRoom::clearHost);
+        //보낸 메시지는 남기고 보낸 사람만 비움
+        chatMessageRepository.clearSender(userId);
+    }
+
+    //생성 후 24시간이 지난 방을 종료(ChatRoomCloseScheduler가 호출)
+    @Transactional
+    public int closeExpiredRooms(){
+        return chatRoomRepository.closeCreatedBefore(LocalDateTime.now().minusHours(24));
     }
 
     //친구 초대
@@ -285,7 +318,7 @@ public class ChatRoomService {
         ChatRoom room=chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
 
-        if (room.getStatus() == ChatRoomStatus.CLOSED) {
+        if (room.isClosed()) {
             throw new ApiException(HttpStatus.CONFLICT, "종료된 채팅방입니다.");
         }
 
@@ -359,14 +392,14 @@ public class ChatRoomService {
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "채팅방 참여자가 아닙니다."));
 
         Long messageId = req.lastReadMessageId();
-        if (!chatMessageRepository.existsByChatMessagesIdAndChatRoomId(messageId, chatRoomId)) {
+        if (!chatMessageRepository.existsByChatMessagesIdAndChatRoom_ChatRoomId(messageId, chatRoomId)) {
             throw badRequest("이 채팅방의 메시지가 아닙니다.");
         }
 
         myInvite.markRead(messageId);
 
         int unreadCount = (int) chatMessageRepository
-                .countByChatRoomIdAndChatMessagesIdGreaterThan(chatRoomId, myInvite.getLastReadMessageId());
+                .countByChatRoom_ChatRoomIdAndChatMessagesIdGreaterThan(chatRoomId, myInvite.getLastReadMessageId());
 
         return new ChatReadResponse(chatRoomId,myInvite.getLastReadMessageId(),unreadCount);
     }

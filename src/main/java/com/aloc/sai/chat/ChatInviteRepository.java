@@ -8,7 +8,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface ChatInvitedRepository extends JpaRepository<ChatInvite,Long> {
+public interface ChatInviteRepository extends JpaRepository<ChatInvite,Long> {
 
     @Query(
             """
@@ -31,7 +31,7 @@ public interface ChatInvitedRepository extends JpaRepository<ChatInvite,Long> {
     )
     List<ChatInvite> findAllByUserId(@Param("userId") Long userId);
 
-    long countByChatRoomId(@Param("roomId") Long roomId);
+    long countByChatRoom_ChatRoomId(Long chatRoomId);
 
     // ChatInvitedRepository
     @Query("""
@@ -46,7 +46,7 @@ public interface ChatInvitedRepository extends JpaRepository<ChatInvite,Long> {
     //참여자와 사용자 정보 쿼리 가져오기
     @Query("""
         select ci
-        from ChatInvited ci
+        from ChatInvite ci
         join fetch ci.user
         where ci.chatRoom.chatRoomId = :chatRoomId
         """)

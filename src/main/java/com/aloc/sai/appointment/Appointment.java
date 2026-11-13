@@ -50,4 +50,8 @@ public class Appointment {
         a.maxMembers=maxMembers;
         return a;
     }
+
+    public void changeHost(User user){
+        this.user=user;
+    }
 }
