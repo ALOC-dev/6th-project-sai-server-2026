@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ChatInvitedRepository extends JpaRepository<ChatInvite,Long> {
 
@@ -20,4 +21,38 @@ public interface ChatInvitedRepository extends JpaRepository<ChatInvite,Long> {
     List<User> findMembers(
             @Param("chatRoomId") Long ChatRoomId
     );
+
+    @Query(
+            """
+        select ci
+        from ChatInvite ci
+        where ci.user.userId=:userId
+        """
+    )
+    List<ChatInvite> findAllByUserId(@Param("userId") Long userId);
+
+    long countByChatRoomId(@Param("roomId") Long roomId);
+
+    // ChatInvitedRepository
+    @Query("""
+        select ci from ChatInvite ci
+        join fetch ci.user
+        where ci.chatRoom.chatRoomId = :roomId
+          and ci.user.userId <> :userId
+        """)
+    Optional<ChatInvite> findOpponent(@Param("roomId") Long roomId, @Param("userId") Long userId);
+
+
+    //참여자와 사용자 정보 쿼리 가져오기
+    @Query("""
+        select ci
+        from ChatInvited ci
+        join fetch ci.user
+        where ci.chatRoom.chatRoomId = :chatRoomId
+        """)
+    List<ChatInvite> findAllWithUserByChatRoomId(@Param("chatRoomId") Long chatRoomId);
+
+    Optional<ChatInvite> findByUser_UserIdAndChatRoom_ChatRoomId(Long userId, Long chatRoomId);
+
+
 }

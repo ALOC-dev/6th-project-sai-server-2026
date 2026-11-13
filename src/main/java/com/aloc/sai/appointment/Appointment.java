@@ -26,6 +26,8 @@ public class Appointment {
 
     private LocalDateTime returnAt;
 
+    private Integer maxMembers;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "userId", nullable = false)
     private User user;
@@ -38,13 +40,14 @@ public class Appointment {
 
     private LocalDateTime createdAt;
 
-    public static Appointment recruiting(ChatRoom room, User host, LocalDateTime departAt) {
+    public static Appointment recruiting(ChatRoom room, User host,Integer maxMembers, LocalDateTime departAt) {
         Appointment a = new Appointment();
         a.status = AppointmentStatus.RECRUITING;
         a.chatRoom = room;
         a.user = host;
         a.departAt = departAt;
         a.createdAt = LocalDateTime.now();
+        a.maxMembers=maxMembers;
         return a;
     }
 }

@@ -67,4 +67,13 @@ public class ChatRoom {
         return maxMembers != null && currentCount >= maxMembers;
     }
 
+    public void rename(String chatRoomName){
+        this.chatRoomName=chatRoomName.strip();
+    }
+
+    public boolean isHost(Long userId){
+        return host.getUserId().equals(userId);
+    }
+
+    public void changeHost(User user){this.host=user;}
 }
