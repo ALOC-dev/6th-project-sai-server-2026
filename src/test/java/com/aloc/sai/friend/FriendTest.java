@@ -5,6 +5,9 @@ import com.aloc.sai.auth.kakao.KakaoClient;
 import com.aloc.sai.auth.kakao.KakaoUserInfo;
 import com.aloc.sai.common.exception.ApiException;
 import com.aloc.sai.friend.dto.FriendRequestAction;
+import com.aloc.sai.notification.Notification;
+import com.aloc.sai.notification.NotificationRepository;
+import com.aloc.sai.notification.NotificationType;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -62,6 +65,9 @@ class FriendTest {
     @Autowired
     private FriendService friendService;
 
+    @Autowired
+    private NotificationRepository notificationRepository;
+
     @MockitoBean
     private KakaoClient kakaoClient;
 
@@ -87,9 +93,10 @@ class FriendTest {
         idC = userId(3L);
     }
 
-    // 친구 테이블이 users를 참조하므로, 다른 테스트가 사용자를 지울 수 있게 정리하고 끝낸다.
+    // 친구·알림 테이블이 users를 참조하므로, 다른 테스트가 사용자를 지울 수 있게 정리하고 끝낸다.
     @AfterEach
     void cleanUp() {
+        notificationRepository.deleteAll();
         friendRequestRepository.deleteAll();
         friendshipRepository.deleteAll();
         refreshTokenRepository.deleteAll();
@@ -371,6 +378,54 @@ class FriendTest {
     private enum Outcome { SUCCESS, CONFLICT }
 
     // 두 작업을 최대한 같은 순간에 시작시키고 각각의 결과(성공 또는 409)를 모은다.
+    @Test
+    void 친구_요청을_보내면_받은_사람에게_FRIEND_REQUEST_알림이_남는다() throws Exception {
+        Long requestId = createRequest(tokenA, idB);
+
+        assertThat(notificationRepository.findAll()).singleElement().satisfies(notification -> {
+            assertThat(notification.getNotificationType()).isEqualTo(NotificationType.FRIEND_REQUEST);
+            assertThat(notification.getReceiver().getUserId()).isEqualTo(idB);
+            assertThat(notification.getActor().getUserId()).isEqualTo(idA);
+            assertThat(notification.getReferenceId()).isEqualTo(requestId);
+        });
+    }
+
+    @Test
+    void 수락하면_요청자에게_FRIEND_ACCEPTED_알림이_남는다() throws Exception {
+        Long requestId = createRequest(tokenA, idB);
+
+        respond(tokenB, requestId, "ACCEPT").andExpect(status().isOk());
+
+        Notification accepted = notificationRepository.findAll().stream()
+                .filter(n -> n.getNotificationType() == NotificationType.FRIEND_ACCEPTED)
+                .findFirst().orElseThrow();
+        assertThat(accepted.getReceiver().getUserId()).isEqualTo(idA);
+        assertThat(accepted.getActor().getUserId()).isEqualTo(idB);
+        assertThat(accepted.getReferenceId()).isEqualTo(requestId);
+        assertThat(notificationRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void 거절하면_요청자에게_알림을_보내지_않는다() throws Exception {
+        Long requestId = createRequest(tokenA, idB);
+
+        respond(tokenB, requestId, "REJECT").andExpect(status().isOk());
+
+        assertThat(notificationRepository.findAll()).singleElement()
+                .satisfies(n -> assertThat(n.getNotificationType()).isEqualTo(NotificationType.FRIEND_REQUEST));
+    }
+
+    @Test
+    void 요청이_실패하면_알림도_남지_않는다() throws Exception {
+        createRequest(tokenA, idB);
+
+        sendRequest(tokenA, idB).andExpect(status().isConflict());
+        respond(tokenC, friendRequestRepository.findAll().getFirst().getFriendRequestId(), "ACCEPT")
+                .andExpect(status().isForbidden());
+
+        assertThat(notificationRepository.count()).isEqualTo(1);
+    }
+
     private List<Outcome> runConcurrently(Runnable first, Runnable second) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
