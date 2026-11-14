@@ -51,6 +51,10 @@ dependencies {
 
 	//websocket/stomp
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+	// S3 (프로필 이미지)
+	implementation platform('software.amazon.awssdk:bom:2.31.50')
+	implementation 'software.amazon.awssdk:s3'
 }
 
 tasks.named('test') {

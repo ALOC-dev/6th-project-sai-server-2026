@@ -13,6 +13,11 @@ spring:
     clients:
       connect-timeout: 3s
       read-timeout: 5s
+  servlet:
+    multipart:
+      # 프로필 이미지 용량(5MB)은 서비스에서 검사해 안내 문구를 돌려준다. 여기서는 그보다 넉넉하게 막는다.
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 springdoc:
   api-docs:
@@ -29,4 +34,9 @@ kakao:
 friend:
   # 초대 링크 도메인은 FE와 딥링크 설정을 확정하면 바꾼다.
   invite-base-url: https://sai.app/invite
+# 자격 증명은 설정 파일에 두지 않는다. S3Config 참고
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket: ${AWS_S3_BUCKET}
 
