@@ -326,6 +326,18 @@ class TimetableTest {
     }
 
     @Test
+    void 학교_데이터에서_한_과목의_수업_시간이_서로_겹치면_409이고_아무것도_등록하지_않는다() throws Exception {
+        Course course = new Course(CURRENT, "55555", "01", "중복 데이터 과목", LocalDateTime.now());
+        course.addSchedule(new CourseSchedule(course, Weekday.MON, LocalTime.of(9, 0), LocalTime.of(10, 15), engineering, "301호"));
+        course.addSchedule(new CourseSchedule(course, Weekday.MON, LocalTime.of(9, 0), LocalTime.of(10, 15), engineering, "301호"));
+        courseRepository.save(course);
+
+        add(token, "{\"courseId\": " + course.getCourseId() + "}").andExpect(status().isConflict());
+
+        assertThat(timetableItemRepository.count()).isZero();
+    }
+
+    @Test
     void 과목과_직접_입력을_함께_보내면_400() throws Exception {
         Course course = saveCourseWithSchedules(CURRENT, "01234", "01", "자료구조");
 

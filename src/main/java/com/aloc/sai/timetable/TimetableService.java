@@ -138,6 +138,10 @@ public class TimetableService {
         List<TimetableItem> items = new ArrayList<>();
         for (CourseSchedule schedule : course.getSchedules()) {
             checkOverlap(timetable, schedule.getDayOfWeek(), schedule.getStartTime(), schedule.getEndTime(), null);
+            // 이번에 만드는 항목은 아직 DB에 없으므로 서로도 비교한다. 학교 데이터에 같은 시간이 중복돼 있어도 겹치는 수업이 생기지 않게 한다.
+            if (items.stream().anyMatch(item -> overlaps(item, schedule))) {
+                throw new ApiException(HttpStatus.CONFLICT, "같은 시간에 이미 수업이 있습니다.");
+            }
             items.add(new TimetableItem(timetable, course, course.getCourseName(), schedule.getDayOfWeek(),
                     schedule.getStartTime(), schedule.getEndTime(), schedule.getBuilding(), schedule.getRoom()));
         }
@@ -190,6 +194,13 @@ public class TimetableService {
                 timetable.getTimetableId(), dayOfWeek, startTime, endTime, excludeItemId)) {
             throw new ApiException(HttpStatus.CONFLICT, "같은 시간에 이미 수업이 있습니다.");
         }
+    }
+
+    // 같은 요일에서 [start, end)가 겹치는지 본다. DB 겹침 검사(existsOverlap)와 같은 기준이다.
+    private static boolean overlaps(TimetableItem item, CourseSchedule schedule) {
+        return item.getDayOfWeek() == schedule.getDayOfWeek()
+                && item.getStartTime().isBefore(schedule.getEndTime())
+                && schedule.getStartTime().isBefore(item.getEndTime());
     }
 
     private static void validateTime(LocalTime startTime, LocalTime endTime) {
