@@ -5,6 +5,7 @@ import com.aloc.sai.auth.dto.TokenRefreshResponse;
 import com.aloc.sai.auth.kakao.KakaoClient;
 import com.aloc.sai.auth.kakao.KakaoUserInfo;
 import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.notification.UserDeviceService;
 import com.aloc.sai.security.JwtTokenProvider;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
@@ -28,6 +29,7 @@ public class AuthService {
     private final UserService userService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserDeviceService userDeviceService;
 
     public KakaoLoginResponse loginWithKakao(String kakaoAccessToken) {
         KakaoUserInfo kakaoUser = kakaoClient.getUserInfo(kakaoAccessToken);
@@ -51,9 +53,13 @@ public class AuthService {
         return new TokenRefreshResponse(jwtTokenProvider.createToken(userId), newRefreshToken);
     }
 
+    // pushToken을 보내면 이 기기로 더 이상 푸시가 가지 않도록 기기 등록도 해제한다.
     @Transactional
-    public void logout(Long userId, String refreshToken) {
+    public void logout(Long userId, String refreshToken, String pushToken) {
         refreshTokenRepository.deleteByTokenHashAndUserId(hash(refreshToken), userId);
+        if (pushToken != null && !pushToken.isBlank()) {
+            userDeviceService.unregister(userId, pushToken);
+        }
     }
 
     private KakaoLoginResponse issueTokens(User user, boolean isNewUser) {

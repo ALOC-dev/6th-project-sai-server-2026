@@ -79,7 +79,7 @@ public class AuthController {
 
     @Operation(summary = "로그아웃",
             description = "요청한 리프레시 토큰을 폐기합니다. 본인의 토큰이 아니거나 이미 폐기된 토큰이어도 204를 반환합니다. "
-                    + "pushToken은 아직 사용하지 않습니다.")
+                    + "pushToken을 함께 보내면 그 기기의 푸시 등록도 해제합니다(본인 기기가 아니면 무시).")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "로그아웃 성공"),
             @ApiResponse(responseCode = "400", description = "refreshToken 누락",
@@ -97,6 +97,6 @@ public class AuthController {
             @LoginUserId Long userId,
             @Valid @RequestBody LogoutRequest request
     ) {
-        authService.logout(userId, request.refreshToken());
+        authService.logout(userId, request.refreshToken(), request.pushToken());
     }
 }
