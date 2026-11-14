@@ -38,7 +38,7 @@ public class ChatRoom {
         ChatRoom room = new ChatRoom();
         boolean direct = type == ChatRoomType.DIRECT;
         room.type = type;
-        room.chatRoomName = direct ? null : name.strip();
+        room.chatRoomName = (direct || name == null) ? null : name.strip();
         room.host = direct ? null : host;
         room.maxMembers = switch (type) {
             case DIRECT -> 2;
@@ -67,4 +67,16 @@ public class ChatRoom {
         return maxMembers != null && currentCount >= maxMembers;
     }
 
+    public void rename(String chatRoomName){
+        this.chatRoomName=chatRoomName.strip();
+    }
+
+    public boolean isHost(Long userId){
+        return host != null && host.getUserId().equals(userId);
+    }
+
+    public void changeHost(User user){this.host=user;}
+
+    //방장이 탈퇴했는데 넘겨받을 참여자가 없을 때
+    public void clearHost(){this.host=null;}
 }

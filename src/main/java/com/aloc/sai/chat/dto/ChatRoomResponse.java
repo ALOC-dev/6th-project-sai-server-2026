@@ -31,7 +31,7 @@ public record ChatRoomResponse(
 
     }
 
-    public record AppointmentSummary(Long appointmentId, AppointmentStatus stauts,LocalDateTime departAt, Integer maxMembers){
+    public record AppointmentSummary(Long appointmentId, AppointmentStatus status,LocalDateTime departAt, Integer maxMembers){
 
     }
 

@@ -18,7 +18,7 @@ public class ChatMessageController {
     //클라이언트->서버
     @MessageMapping("/chat-rooms/{chatRoomId}/messages")
     public void sendMessage(
-            @DestinationVariable String roomId,
+            @DestinationVariable Long chatRoomId,
             ChatMessageRequest request,
             Principal principal
     ){

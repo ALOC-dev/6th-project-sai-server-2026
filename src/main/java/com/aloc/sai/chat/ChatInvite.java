@@ -37,4 +37,10 @@ public class ChatInvite {
             this.lastReadMessageId=messageId;
         }
     }
+
+    public void markRead(Long messageId){
+        if(this.lastReadMessageId == null || this.lastReadMessageId<messageId){
+            this.lastReadMessageId=messageId;
+        }
+    }
 }
