@@ -375,9 +375,6 @@ class FriendTest {
         mockMvc.perform(get("/api/v1/friend-requests")).andExpect(status().isUnauthorized());
     }
 
-    private enum Outcome { SUCCESS, CONFLICT }
-
-    // 두 작업을 최대한 같은 순간에 시작시키고 각각의 결과(성공 또는 409)를 모은다.
     @Test
     void 친구_요청을_보내면_받은_사람에게_FRIEND_REQUEST_알림이_남는다() throws Exception {
         Long requestId = createRequest(tokenA, idB);
@@ -426,6 +423,9 @@ class FriendTest {
         assertThat(notificationRepository.count()).isEqualTo(1);
     }
 
+    private enum Outcome { SUCCESS, CONFLICT }
+
+    // 두 작업을 최대한 같은 순간에 시작시키고 각각의 결과(성공 또는 409)를 모은다.
     private List<Outcome> runConcurrently(Runnable first, Runnable second) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
