@@ -3,6 +3,7 @@ package com.aloc.sai.friend;
 import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.auth.kakao.KakaoClient;
 import com.aloc.sai.auth.kakao.KakaoUserInfo;
+import com.aloc.sai.notification.NotificationRepository;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -47,6 +48,9 @@ class FriendSearchTest {
     @Autowired
     private FriendshipRepository friendshipRepository;
 
+    @Autowired
+    private NotificationRepository notificationRepository;
+
     @MockitoBean
     private KakaoClient kakaoClient;
 
@@ -67,9 +71,10 @@ class FriendSearchTest {
         userB = userRepository.findByKakaoId(2L).orElseThrow();
     }
 
-    // 친구 테이블이 users를 참조하므로, 다른 테스트가 사용자를 지울 수 있게 정리하고 끝낸다.
+    // 친구·알림 테이블이 users를 참조하므로, 다른 테스트가 사용자를 지울 수 있게 정리하고 끝낸다.
     @AfterEach
     void cleanUp() {
+        notificationRepository.deleteAll();
         friendRequestRepository.deleteAll();
         friendshipRepository.deleteAll();
         refreshTokenRepository.deleteAll();

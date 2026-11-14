@@ -9,6 +9,8 @@ import com.aloc.sai.friend.dto.FriendRequestListResponse;
 import com.aloc.sai.friend.dto.FriendRequestRespondResponse;
 import com.aloc.sai.friend.dto.FriendSearchResponse;
 import com.aloc.sai.friend.dto.FriendshipStatus;
+import com.aloc.sai.notification.NotificationService;
+import com.aloc.sai.notification.NotificationType;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserService;
 import com.aloc.sai.user.UserWithdrawEvent;
@@ -32,6 +34,7 @@ public class FriendService {
     private final UserService userService;
     private final FriendRequestRepository friendRequestRepository;
     private final FriendshipRepository friendshipRepository;
+    private final NotificationService notificationService;
 
     // 초대 링크 도메인은 FE·딥링크 설정과 함께 확정되므로 설정값으로 둔다.
     @Value("${friend.invite-base-url}")
@@ -94,12 +97,16 @@ public class FriendService {
         // 동시에 서로 요청하거나, 수락과 재요청이 겹치면 위 검사를 통과할 수 있다.
         // 그때는 activePairKey 유니크 제약이 막는다(수락된 요청도 키를 유지한다).
         // 제약 위반의 원인(유니크 충돌, 그 사이 상대 탈퇴로 인한 FK 위반 등)을 이 트랜잭션에서 다시 조회해 가릴 수 없으므로 중립적으로 안내한다.
+        FriendRequest request;
         try {
-            FriendRequest request = friendRequestRepository.saveAndFlush(new FriendRequest(requester, receiver));
-            return FriendRequestCreateResponse.from(request);
+            request = friendRequestRepository.saveAndFlush(new FriendRequest(requester, receiver));
         } catch (DataIntegrityViolationException e) {
             throw retryLater(e);
         }
+
+        // 같은 트랜잭션에 알림 기록을 남기고, 푸시는 요청이 커밋된 뒤에 나간다.
+        notificationService.send(receiverId, userId, NotificationType.FRIEND_REQUEST, request.getFriendRequestId());
+        return FriendRequestCreateResponse.from(request);
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +129,7 @@ public class FriendService {
             throw new ApiException(HttpStatus.CONFLICT, "이미 처리된 친구 요청입니다.");
         }
 
+        // 거절은 요청자에게 알리지 않는다. 받은 사람의 알림 창에서 FRIEND_REQUEST 알림이 거절 로그로 보일 뿐이다.
         LocalDateTime now = LocalDateTime.now();
         if (action == FriendRequestAction.REJECT) {
             request.reject(now);
@@ -129,13 +137,16 @@ public class FriendService {
         }
 
         request.accept(now);
+        Friendship friendship;
         try {
-            Friendship friendship = friendshipRepository.saveAndFlush(
-                    new Friendship(request.getRequester(), request.getReceiver()));
-            return FriendRequestRespondResponse.of(request, friendship.getFriendshipId());
+            friendship = friendshipRepository.saveAndFlush(new Friendship(request.getRequester(), request.getReceiver()));
         } catch (DataIntegrityViolationException e) {
             throw retryLater(e);
         }
+
+        notificationService.send(
+                request.getRequester().getUserId(), userId, NotificationType.FRIEND_ACCEPTED, friendRequestId);
+        return FriendRequestRespondResponse.of(request, friendship.getFriendshipId());
     }
 
     // 공강 필터(available)는 시간표 도메인이 생기면 적용한다. 지금은 모든 친구의 오늘 수업이 비어 있어 전원이 공강이다.
