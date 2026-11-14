@@ -29,6 +29,29 @@ class ProfileImageTypeTest {
     }
 
     @Test
+    void 아이폰_다중_이미지_브랜드도_HEIC로_판별한다() {
+        byte[] heim = "\0\0\0\u0018ftypheim\0\0\0\0mif1heim".getBytes(StandardCharsets.ISO_8859_1);
+        byte[] heis = "\0\0\0\u0018ftypheis\0\0\0\0mif1heis".getBytes(StandardCharsets.ISO_8859_1);
+
+        assertThat(ProfileImageType.detect(heim)).contains(ProfileImageType.HEIC);
+        assertThat(ProfileImageType.detect(heis)).contains(ProfileImageType.HEIC);
+    }
+
+    @Test
+    void 대표_브랜드가_mif1이어도_호환_브랜드에_avif가_있으면_판별하지_않는다() {
+        byte[] avifAsMif1 = "\0\0\0\u001Cftypmif1\0\0\0\0mif1miafavif".getBytes(StandardCharsets.ISO_8859_1);
+
+        assertThat(ProfileImageType.detect(avifAsMif1)).isEmpty();
+    }
+
+    @Test
+    void HEVC_시퀀스는_판별하지_않는다() {
+        byte[] hevc = "\0\0\0\u0018ftyphevc\0\0\0\0msf1hevc".getBytes(StandardCharsets.ISO_8859_1);
+
+        assertThat(ProfileImageType.detect(hevc)).isEmpty();
+    }
+
+    @Test
     void 같은_구조인_MP4와_AVIF는_판별하지_않는다() {
         byte[] mp4 = "\0\0\0\u0018ftypisom\0\0\0\0isomiso2".getBytes(StandardCharsets.ISO_8859_1);
         byte[] avif = "\0\0\0\u0018ftypavif\0\0\0\0avifmif1".getBytes(StandardCharsets.ISO_8859_1);
