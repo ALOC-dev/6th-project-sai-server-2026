@@ -17,16 +17,20 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
-@Tag(name = "User", description = "내 정보 조회·수정, 닉네임 중복 확인, 회원 탈퇴 API")
+@Tag(name = "User", description = "내 정보 조회·수정, 프로필 이미지 변경, 닉네임 중복 확인, 회원 탈퇴 API")
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
@@ -118,6 +122,40 @@ public class UserController {
             @Valid @RequestBody UserUpdateRequest request
     ) {
         return userService.updateProfile(userId, request);
+    }
+
+    @Operation(summary = "프로필 이미지 변경",
+            description = "multipart/form-data의 image 파트로 이미지를 올리면 저장 후 프로필 이미지 URL을 바꿉니다. "
+                    + "JPG·PNG·WEBP·HEIC(HEIF), 5MB 이하만 받으며 형식은 파일 내용으로 판별합니다. 이전에 올린 이미지는 삭제됩니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "변경 성공 (변경 후 프로필 반환)"),
+            @ApiResponse(responseCode = "400", description = "이미지 누락, 지원하지 않는 형식, 용량 초과",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "이미지 누락", value = """
+                                            {"success": false, "message": "이미지 파일을 첨부해 주세요.", "code": 400}"""),
+                                    @ExampleObject(name = "지원하지 않는 형식", value = """
+                                            {"success": false, "message": "JPG, PNG, WEBP, HEIC 이미지만 업로드할 수 있습니다.", "code": 400}"""),
+                                    @ExampleObject(name = "용량 초과", value = """
+                                            {"success": false, "message": "프로필 이미지는 5MB 이하만 업로드할 수 있습니다.", "code": 400}""")
+                            })),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "탈퇴했거나 없는 사용자",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = USER_NOT_FOUND_EXAMPLE))),
+            @ApiResponse(responseCode = "500", description = "이미지 저장 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "프로필 이미지를 저장하지 못했습니다.", "code": 500}""")))
+    })
+    @PutMapping(value = "/me/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public UserProfileResponse updateProfileImage(
+            @LoginUserId Long userId,
+            @RequestPart(value = "image", required = false) MultipartFile image
+    ) {
+        return userService.updateProfileImage(userId, image);
     }
 
     @Operation(summary = "회원 탈퇴",

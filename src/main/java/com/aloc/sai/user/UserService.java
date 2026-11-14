@@ -12,7 +12,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -30,11 +35,14 @@ public class UserService {
     private static final int MAX_GENERATION_ATTEMPTS = 20;
     private static final int STATUS_MESSAGE_MAX_LENGTH = 50;
     private static final String WITHDRAW_CONFIRMATION = "DELETE";
+    private static final long PROFILE_IMAGE_MAX_BYTES = 5L * 1024 * 1024;
 
     private final SecureRandom random = new SecureRandom();
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ProfileImageStorage profileImageStorage;
+    private final TransactionTemplate transactionTemplate;
 
     // 트랜잭션을 걸지 않는다. 동시 가입으로 저장이 실패해도 롤백 전용 상태가 되지 않고 바로 다시 조회할 수 있게 하기 위해서다.
     public KakaoUserResult findOrRegisterKakaoUser(Long kakaoId, String kakaoName, String profileImageUrl) {
@@ -111,9 +119,45 @@ public class UserService {
         }
 
         User user = findUser(userId);
+        String profileImageUrl = user.getProfileImageUrl();
         refreshTokenRepository.deleteByUserId(userId);
         eventPublisher.publishEvent(new UserWithdrawEvent(userId));
         userRepository.delete(user);
+
+        // 탈퇴가 롤백되면 이미지가 남아 있어야 하므로 커밋 후에 지운다.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                profileImageStorage.delete(profileImageUrl);
+            }
+        });
+    }
+
+    // 업로드는 트랜잭션 밖에서 한다. S3 요청 동안 DB 커넥션을 잡고 있지 않기 위해서다.
+    // DB 반영이 실패하면 방금 올린 이미지를 지우고, 성공하면 이전 이미지를 지운다.
+    public UserProfileResponse updateProfileImage(Long userId, MultipartFile image) {
+        byte[] content = readImage(image);
+        ProfileImageType type = ProfileImageType.detect(content)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "JPG, PNG, WEBP, HEIC 이미지만 업로드할 수 있습니다."));
+        // 없는 사용자면 업로드 전에 404로 끝낸다.
+        findUser(userId);
+
+        String newImageUrl = profileImageStorage.upload(userId, content, type);
+        ProfileImageChange change;
+        try {
+            change = transactionTemplate.execute(status -> {
+                User user = findUser(userId);
+                String oldImageUrl = user.getProfileImageUrl();
+                user.updateProfileImageUrl(newImageUrl);
+                return new ProfileImageChange(oldImageUrl, UserProfileResponse.from(user));
+            });
+        } catch (RuntimeException e) {
+            profileImageStorage.delete(newImageUrl);
+            throw e;
+        }
+
+        profileImageStorage.delete(change.oldImageUrl());
+        return change.profile();
     }
 
     // 다른 도메인이 사용자를 조회할 때 쓴다. 없으면 404다.
@@ -136,6 +180,23 @@ public class UserService {
     private User findUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+    }
+
+    private byte[] readImage(MultipartFile image) {
+        if (image == null || image.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "이미지 파일을 첨부해 주세요.");
+        }
+        if (image.getSize() > PROFILE_IMAGE_MAX_BYTES) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "프로필 이미지는 5MB 이하만 업로드할 수 있습니다.");
+        }
+        try {
+            return image.getBytes();
+        } catch (IOException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "이미지 파일을 읽을 수 없습니다.", e);
+        }
+    }
+
+    private record ProfileImageChange(String oldImageUrl, UserProfileResponse profile) {
     }
 
     private void changeNickname(User user, String requestedNickname) {
