@@ -12,7 +12,7 @@ record NotificationCreatedEvent(
         return new NotificationCreatedEvent(
                 notification.getNotificationId(),
                 notification.getReceiver().getUserId(),
-                notification.getActor().getUserId(),
+                notification.getActor() == null ? null : notification.getActor().getUserId(),
                 notification.getNotificationType(),
                 notification.getReferenceId()
         );

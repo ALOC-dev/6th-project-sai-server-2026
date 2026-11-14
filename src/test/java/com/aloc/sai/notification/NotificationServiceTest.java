@@ -91,6 +91,16 @@ class NotificationServiceTest {
     }
 
     @Test
+    void 발생시킨_사람이_없는_시스템_알림도_보낸다() {
+        notificationService.send(receiverId, null, NotificationType.POKE, null);
+
+        Notification notification = notificationRepository.findAll().getFirst();
+        assertThat(notification.getActor()).isNull();
+        verify(pushSender).push(new NotificationCreatedEvent(
+                notification.getNotificationId(), receiverId, null, NotificationType.POKE, null));
+    }
+
+    @Test
     void 호출한_트랜잭션이_롤백되면_기록도_푸시도_남지_않는다() {
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             notificationService.send(receiverId, actorId, NotificationType.CHAT_INVITE, 5L);

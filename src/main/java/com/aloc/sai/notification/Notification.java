@@ -37,8 +37,9 @@ public class Notification {
     @JoinColumn(name = "receiver_id", nullable = false)
     private User receiver;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "actor_id", nullable = false)
+    // 알림을 발생시킨 사용자. 약속 리마인더 같은 시스템 알림은 발생시킨 사람이 없어 null이다.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actor_id")
     private User actor;
 
     @Enumerated(EnumType.STRING)
