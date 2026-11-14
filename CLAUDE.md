@@ -27,7 +27,7 @@
 ```
 com.aloc.sai
 ├── common/exception/   # ApiException, ErrorResponse, GlobalExceptionHandler
-├── config/             # Security, Swagger, Scheduling 설정
+├── config/             # Security, Swagger, Scheduling, WebSocket 설정
 ├── security/           # JWT 필터·프로바이더, @LoginUserId
 ├── dev/                # local 프로필 전용 (테스트 토큰 발급)
 ├── auth/               # 로그인·토큰 (+ kakao/, dto/)
@@ -106,6 +106,6 @@ com.aloc.sai
 - 요청받은 범위만 수정합니다. 관련 없는 리팩터링이나 포맷 변경을 섞지 않습니다.
 
 ## 팀 합의 없이 하지 않을 것
-- `config/`, `security/`, `common/`의 공통 설정·보안·예외 처리 변경
+- `config/`, `security/`, `common/`의 **기존** 설정·보안·예외 처리 동작 변경 (인증 경로, 필터 순서, 에러 응답 형식 등). 기존 동작을 바꾸지 않는 새 설정 빈 추가(예: `S3Config`)는 합의 없이 해도 되며, PR 설명에 적어 공유합니다
 - DB 스키마(Entity 필드·연관관계) 변경 — `ddl-auto: update`라서 Entity를 바꾸면 개발 DB 스키마가 바로 바뀝니다. 필요하면 변경안을 먼저 제안합니다
 - 설정 파일에 키·비밀번호·토큰 하드코딩 (환경 변수 사용)
