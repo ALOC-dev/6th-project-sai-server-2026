@@ -3,18 +3,22 @@ package com.aloc.sai.notification;
 import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.auth.kakao.KakaoClient;
 import com.aloc.sai.auth.kakao.KakaoUserInfo;
+import com.aloc.sai.common.exception.ApiException;
 import com.aloc.sai.user.UserRepository;
+import com.aloc.sai.user.UserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -24,6 +28,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -50,6 +55,12 @@ class UserDeviceTest {
 
     @Autowired
     private UserDeviceService userDeviceService;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @MockitoBean
     private KakaoClient kakaoClient;
@@ -129,6 +140,38 @@ class UserDeviceTest {
         }
 
         assertThat(userDeviceRepository.count()).isEqualTo(1);
+    }
+
+    // 탈퇴 트랜잭션이 사용자 행을 잠근 채 진행 중일 때 등록이 들어오는 상황을 만든다.
+    // 등록은 탈퇴가 끝날 때까지 기다렸다가 404로 끝나야 하고, 탈퇴는 FK 위반 없이 성공해야 한다.
+    @Test
+    void 탈퇴_중에_들어온_등록은_탈퇴가_끝난_뒤_404로_끝난다() throws Exception {
+        login("user-1");
+        Long userId = userRepository.findByKakaoId(1L).orElseThrow().getUserId();
+        CountDownLatch withdrawLocked = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> registration = executor.submit(() -> {
+                withdrawLocked.await();
+                return userDeviceService.register(userId, TOKEN, DevicePlatform.IOS);
+            });
+
+            transactionTemplate.executeWithoutResult(status -> {
+                userService.withdraw(userId, "DELETE");
+                withdrawLocked.countDown();
+                sleep(300);
+            });
+
+            assertThatThrownBy(() -> registration.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(ApiException.class)
+                    .cause()
+                    .satisfies(e -> assertThat(((ApiException) e).getStatus()).isEqualTo(HttpStatus.NOT_FOUND));
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(userRepository.findById(userId)).isEmpty();
+        assertThat(userDeviceRepository.count()).isZero();
     }
 
     @Test
@@ -244,6 +287,15 @@ class UserDeviceTest {
         return new LoginTokens(
                 response.replaceAll(".*\"accessToken\":\"([^\"]+)\".*", "$1"),
                 response.replaceAll(".*\"refreshToken\":\"([^\"]+)\".*", "$1"));
+    }
+
+    // 등록 요청이 잠금을 기다리는 상태가 될 때까지 탈퇴 트랜잭션을 붙잡아 둔다.
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private record LoginTokens(String accessToken, String refreshToken) {

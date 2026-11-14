@@ -168,6 +168,13 @@ public class UserService {
         return findUser(userId);
     }
 
+    // 다른 도메인이 사용자 행을 잠그고 읽을 때 쓴다. 탈퇴도 같은 행을 잠그므로 둘이 차례로 처리되고,
+    // 탈퇴가 먼저 끝났으면 404다. 잠금은 호출한 쪽 트랜잭션이 끝날 때 풀린다.
+    @Transactional
+    public User getUserForUpdate(Long userId) {
+        return findUserForUpdate(userId);
+    }
+
     // 다른 도메인이 닉네임(완전 일치)이나 친구 코드로 사용자를 찾을 때 쓴다. 없을 때의 응답은 호출한 쪽이 정한다.
     @Transactional(readOnly = true)
     public Optional<User> findByNickname(String nickname) {
