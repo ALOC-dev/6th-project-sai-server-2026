@@ -76,6 +76,10 @@ public class User {
         this.department = department;
     }
 
+    public void updateProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
+    }
+
     public void updateStatusMessage(String statusMessage) {
         this.statusMessage = statusMessage;
     }
