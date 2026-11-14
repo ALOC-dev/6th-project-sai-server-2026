@@ -118,7 +118,8 @@ public class UserService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "탈퇴 확인 문구가 올바르지 않습니다.");
         }
 
-        User user = findUser(userId);
+        // 프로필 이미지 변경과 겹쳐도 지울 이미지 URL을 놓치지 않도록 잠그고 읽는다.
+        User user = findUserForUpdate(userId);
         String profileImageUrl = user.getProfileImageUrl();
         refreshTokenRepository.deleteByUserId(userId);
         eventPublisher.publishEvent(new UserWithdrawEvent(userId));
@@ -135,6 +136,7 @@ public class UserService {
 
     // 업로드는 트랜잭션 밖에서 한다. S3 요청 동안 DB 커넥션을 잡고 있지 않기 위해서다.
     // DB 반영이 실패하면 방금 올린 이미지를 지우고, 성공하면 이전 이미지를 지운다.
+    // 동시에 여러 번 올려도 각 요청이 직전 요청의 이미지를 이전 이미지로 읽도록 사용자 행을 잠근다.
     public UserProfileResponse updateProfileImage(Long userId, MultipartFile image) {
         byte[] content = readImage(image);
         ProfileImageType type = ProfileImageType.detect(content)
@@ -146,7 +148,7 @@ public class UserService {
         ProfileImageChange change;
         try {
             change = transactionTemplate.execute(status -> {
-                User user = findUser(userId);
+                User user = findUserForUpdate(userId);
                 String oldImageUrl = user.getProfileImageUrl();
                 user.updateProfileImageUrl(newImageUrl);
                 return new ProfileImageChange(oldImageUrl, UserProfileResponse.from(user));
@@ -179,6 +181,11 @@ public class UserService {
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+    }
+
+    private User findUserForUpdate(Long userId) {
+        return userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
     }
 

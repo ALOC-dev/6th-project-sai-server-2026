@@ -18,6 +18,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -52,6 +55,9 @@ class ProfileImageUpdateTest {
 
     @MockitoBean
     private KakaoClient kakaoClient;
+
+    @Autowired
+    private UserService userService;
 
     @MockitoBean
     private ProfileImageStorage profileImageStorage;
@@ -178,6 +184,32 @@ class ProfileImageUpdateTest {
 
         verify(profileImageStorage).delete(S3_IMAGE_URL_1);
         assertThat(userRepository.findByKakaoId(1L)).isEmpty();
+    }
+
+    // 두 요청이 업로드를 마친 뒤 거의 동시에 DB를 바꾸는 상황을 만든다.
+    // 잠금이 없으면 둘 다 카카오 URL을 이전 이미지로 읽어, 먼저 반영된 이미지가 S3에 남는다.
+    @Test
+    void 동시에_변경해도_밀려난_이미지를_삭제한다() throws Exception {
+        login();
+        Long userId = userRepository.findByKakaoId(1L).orElseThrow().getUserId();
+        CyclicBarrier uploaded = new CyclicBarrier(2);
+        given(profileImageStorage.upload(anyLong(), any(), any())).willAnswer(invocation -> {
+            uploaded.await(5, TimeUnit.SECONDS);
+            return Thread.currentThread().getName().endsWith("1") ? S3_IMAGE_URL_1 : S3_IMAGE_URL_2;
+        });
+
+        Thread first = new Thread(() -> userService.updateProfileImage(userId, image("a.png", PNG)), "upload-1");
+        Thread second = new Thread(() -> userService.updateProfileImage(userId, image("b.png", PNG)), "upload-2");
+        first.start();
+        second.start();
+        first.join(10_000);
+        second.join(10_000);
+
+        String finalUrl = userRepository.findById(userId).orElseThrow().getProfileImageUrl();
+        String replacedUrl = finalUrl.equals(S3_IMAGE_URL_1) ? S3_IMAGE_URL_2 : S3_IMAGE_URL_1;
+        verify(profileImageStorage).delete(KAKAO_IMAGE_URL);
+        verify(profileImageStorage).delete(replacedUrl);
+        verify(profileImageStorage, never()).delete(finalUrl);
     }
 
     private MockMultipartFile image(String filename, byte[] content) {
