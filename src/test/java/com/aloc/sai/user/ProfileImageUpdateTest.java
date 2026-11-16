@@ -39,8 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class ProfileImageUpdateTest {
     private static final String KAKAO_IMAGE_URL = "https://k.kakaocdn.net/profile.png";
-    private static final String S3_IMAGE_URL_1 = "https://bucket.s3.ap-northeast-2.amazonaws.com/profile-images/1/a.png";
-    private static final String S3_IMAGE_URL_2 = "https://bucket.s3.ap-northeast-2.amazonaws.com/profile-images/1/b.jpg";
+    private static final String S3_IMAGE_URL_1 = "https://bucket.s3.ap-northeast-2.amazonaws.com/profile/1/a.png";
+    private static final String S3_IMAGE_URL_2 = "https://bucket.s3.ap-northeast-2.amazonaws.com/profile/1/b.jpg";
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 0, 0};
     private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0};
 

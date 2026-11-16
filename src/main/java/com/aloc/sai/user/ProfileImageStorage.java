@@ -12,11 +12,12 @@ import software.amazon.awssdk.services.s3.S3Client;
 import java.util.UUID;
 
 // 프로필 이미지를 S3에 저장·삭제한다.
-// 버킷은 profile-images/ 아래 객체를 공개 읽기로 열어 두고, 앱은 응답의 URL로 이미지를 바로 받는다.
+// 키 prefix는 서버용 IAM 정책(sai-server-s3-policy)이 허용하는 profile/ 와 같아야 한다. 다르면 업로드가 AccessDenied로 실패한다.
+// 앱은 응답의 URL로 이미지를 받는다. 버킷을 비공개로 둘지(CloudFront) profile/ 경로만 공개할지는 아직 정하지 않았다.
 @Slf4j
 @Component
 public class ProfileImageStorage {
-    private static final String KEY_PREFIX = "profile-images/";
+    private static final String KEY_PREFIX = "profile/";
     // 키에 UUID가 들어가 같은 URL의 내용이 바뀌지 않으므로 오래 캐시해도 된다.
     private static final String CACHE_CONTROL = "public, max-age=31536000, immutable";
 
