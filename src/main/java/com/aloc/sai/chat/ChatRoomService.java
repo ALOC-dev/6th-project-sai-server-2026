@@ -252,7 +252,8 @@ public class ChatRoomService {
     //채팅방 나가기
     @Transactional
     public void leaveChatRoom(Long userId,Long chatRoomId){
-        ChatRoom room=chatRoomRepository.findById(chatRoomId)
+        //동시에 나가도 방 종료·방장 위임이 꼬이지 않도록 방을 잠근다
+        ChatRoom room=chatRoomRepository.findByIdForUpdate(chatRoomId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
 
         leave(room, userId);
@@ -260,7 +261,7 @@ public class ChatRoomService {
         //TODO:채팅방 나가는 알림
     }
 
-    //참여 정보를 지우고, 남은 사람이 없으면 방 종료, 방장이 나가면 남은 사람에게 넘김
+    //참여 정보를 지우고 남은 사람이 없으면 방 종료, 방장이 나가면 남은 사람에게 넘김
     private void leave(ChatRoom room, Long userId){
         List<ChatInvite> invites = chatInvitedRepository.findAllWithUserByChatRoomId(room.getChatRoomId());
         ChatInvite myInvite = invites.stream()
@@ -298,7 +299,8 @@ public class ChatRoomService {
         Long userId = event.userId();
         //참여 중인 방은 나가기와 같은 규칙으로 정리
         for (ChatInvite invite : chatInvitedRepository.findAllByUserId(userId)) {
-            leave(invite.getChatRoom(), userId);
+            Long chatRoomId = invite.getChatRoom().getChatRoomId();
+            leave(chatRoomRepository.findByIdForUpdate(chatRoomId).orElseThrow(), userId);
         }
         //이미 나갔지만 방장으로 남아 있는 방(마지막 참여자로 나가 종료된 방 등)
         chatRoomRepository.findAllByHost_UserId(userId).forEach(ChatRoom::clearHost);
@@ -315,7 +317,8 @@ public class ChatRoomService {
     //친구 초대
     @Transactional
     public ChatInviteResponse inviteFriends(Long userId, Long chatRoomId, ChatInviteRequest req){
-        ChatRoom room=chatRoomRepository.findById(chatRoomId)
+        //현재 인원은 집계값이라 조건부 INSERT로 막기 어려우므로, 방을 잠가 정원 확인~저장을 직렬화한다
+        ChatRoom room=chatRoomRepository.findByIdForUpdate(chatRoomId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
 
         if (room.isClosed()) {

@@ -1,12 +1,15 @@
 package com.aloc.sai.chat;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     @Query(
@@ -27,6 +30,11 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
             @Param("status") ChatRoomStatus status,
             @Param("since") LocalDateTime since
     );
+
+    //참여자 변경(초대·나가기)은 방 단위로 직렬화해 정원 초과·동시 나가기 꼬임을 막는다
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from ChatRoom r where r.chatRoomId = :id")
+    Optional<ChatRoom> findByIdForUpdate(@Param("id") Long id);
 
     List<ChatRoom> findAllByHost_UserId(Long userId);
 
