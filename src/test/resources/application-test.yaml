@@ -10,6 +10,10 @@ jwt:
   secret: dGVzdC1zZWNyZXQta2V5LWZvci1zYWktdGVzdHMtb25seS0zMmJ5dGVz
   access-expiration-ms: 3600000
   refresh-expiration-ms: 1209600000
+uos:
+  api-key: test-uos-key
+  sync:
+    enabled: false
 aws:
   region: ap-northeast-2
   s3:
