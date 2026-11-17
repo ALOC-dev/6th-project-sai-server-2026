@@ -406,4 +406,15 @@ public class ChatRoomService {
 
         return new ChatReadResponse(chatRoomId,myInvite.getLastReadMessageId(),unreadCount);
     }
+
+
+    //채팅방 구독 전 참여자인지 여부 확인
+    @Transactional(readOnly = true)
+    public void checkMember(Long userId, Long chatRoomId){
+        if(!chatRoomRepository.existsById(chatRoomId)){
+            throw new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다.");
+        }
+        chatInvitedRepository.findByUser_UserIdAndChatRoom_ChatRoomId(userId,chatRoomId)
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "채팅방 참여자가 아닙니다."));
+    }
 }

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -22,10 +23,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry){
+        //stomp이 연결되어있는지 확인하는 타이머
+        ThreadPoolTaskScheduler heartbeatScheduler=new ThreadPoolTaskScheduler();
+        heartbeatScheduler.setPoolSize(1);
+        heartbeatScheduler.setThreadNamePrefix("ws-heartbeat-");
+        heartbeatScheduler.initialize();
+
         //클라이언트->서버 컨트롤러
         registry.setApplicationDestinationPrefixes("/pub");
         //브로커->구독자
-        registry.enableSimpleBroker("/sub","/queue");
+        registry.enableSimpleBroker("/sub","/queue")
+                .setHeartbeatValue(new long[]{10000,10000})
+                .setTaskScheduler(heartbeatScheduler);
         //특정 사용자 한명에게
         registry.setUserDestinationPrefix("/user");
     }
