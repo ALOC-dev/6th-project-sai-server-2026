@@ -20,4 +20,16 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
                         @Param("semester") Semester semester,
                         @Param("pattern") String pattern,
                         Pageable pageable);
+
+    boolean existsByAcademicYearAndSemester(int academicYear, Semester semester);
+
+    // 동기화용. 수업 시간·건물까지 한 번에 가져와 과목마다 추가 조회가 생기지 않게 한다.
+    @Query("""
+            select distinct c from Course c
+            left join fetch c.schedules s
+            left join fetch s.building
+            where c.academicYear = :academicYear and c.semester = :semester
+            """)
+    List<Course> findAllWithSchedulesByTerm(@Param("academicYear") int academicYear,
+                                            @Param("semester") Semester semester);
 }

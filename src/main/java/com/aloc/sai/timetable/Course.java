@@ -71,4 +71,15 @@ public class Course {
     public void addSchedule(CourseSchedule schedule) {
         schedules.add(schedule);
     }
+
+    // 학교 데이터와 다시 맞춘다. 과목은 시간표 항목이 참조하므로 지우지 않고 갱신한다.
+    public void syncFromSchool(String courseName, LocalDateTime syncedAt) {
+        this.courseName = courseName;
+        this.syncedAt = syncedAt;
+    }
+
+    public void replaceSchedules(List<CourseSchedule> newSchedules) {
+        schedules.clear();
+        schedules.addAll(newSchedules);
+    }
 }

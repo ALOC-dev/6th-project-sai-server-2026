@@ -10,7 +10,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-// 학교 건물. 학교 API(ApiBldg)로 채우고, 학교 API에 없는 위도·경도는 따로 입력한다.
+// 학교 건물. 캠퍼스 공식 건물 번호표(CampusBuildings)로 채우고, 위도·경도는 따로 입력한다.
 @Entity
 @Table(name = "buildings")
 @Getter
@@ -28,7 +28,7 @@ public class Building {
 
     private Double longitude;
 
-    // 학교 건물코드. 동기화할 때 같은 건물을 찾는 기준이다.
+    // 캠퍼스 건물 번호(예: "19"). 강의실 표기 "19-B102"의 앞부분과 같고, 동기화할 때 같은 건물을 찾는 기준이다.
     @Column(unique = true, length = 20)
     private String buildingCode;
 
@@ -37,5 +37,10 @@ public class Building {
         this.buildingCode = buildingCode;
         this.latitude = latitude;
         this.longitude = longitude;
+    }
+
+    public void syncFromSchool(String buildingName, String buildingCode) {
+        this.buildingName = buildingName;
+        this.buildingCode = buildingCode;
     }
 }

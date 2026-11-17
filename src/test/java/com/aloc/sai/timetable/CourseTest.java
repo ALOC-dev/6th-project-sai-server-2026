@@ -190,7 +190,7 @@ class CourseTest {
 
     @Test
     void 학기_값이_잘못되면_400을_반환한다() throws Exception {
-        courses("keyword=자료&academicYear=2026&semester=SUMMER").andExpect(status().isBadRequest());
+        courses("keyword=자료&academicYear=2026&semester=FALL").andExpect(status().isBadRequest());
     }
 
     @Test
