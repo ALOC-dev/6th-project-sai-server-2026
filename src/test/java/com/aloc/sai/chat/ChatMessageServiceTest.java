@@ -187,7 +187,7 @@ class ChatMessageServiceTest {
         assertThat(page.hasNext()).isTrue();
         assertThat(page.messages().get(0).message()).isEqualTo("메시지35");   // 가장 최신
         assertThat(page.messages().get(29).message()).isEqualTo("메시지6");
-        assertThat(page.nextCursor()).isEqualTo(page.messages().get(29).chatMessageId());
+        assertThat(page.nextCursor()).isEqualTo(page.messages().get(29).chatMessagesId());
     }
 
     @Test
