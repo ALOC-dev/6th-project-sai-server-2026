@@ -7,13 +7,13 @@ import com.aloc.sai.user.User;
 import java.time.LocalDateTime;
 
 public record ChatMessageResponse(
-        Long chatMessageId,
+        Long chatMessagesId,
         Long chatRoomId,
         MessageType type,
         String message,
         Sender sender,
         LocalDateTime sendAt,
-        Long recommendationRequestedId,
+        Long recommendationRequestsId,
         Long recommendationRouteId
 ) {
     public record Sender(

@@ -49,7 +49,7 @@ public class ChatMessageController {
     private final ChatMessageService chatMessageService;
 
     @Operation(summary = "메시지 전송 (STOMP)",
-            description = "STOMP SEND /app/chat-rooms/{chatRoomId}/messages 로 메시지를 보냅니다. "
+            description = "STOMP SEND /pub/chat-rooms/{chatRoomId}/messages 로 메시지를 보냅니다. "
                     + "채팅방 참여자만 보낼 수 있으며, 저장된 메시지는 해당 채팅방 구독자에게 브로드캐스트됩니다. "
                     + "실패하면 HTTP 응답 대신 보낸 사람의 /user/queue/errors로 ChatErrorResponse가 전달되므로, "
                     + "클라이언트는 연결 직후 /user/queue/errors를 구독해야 합니다.")
