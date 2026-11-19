@@ -1,15 +1,14 @@
 package com.aloc.sai.chat;
 
-import com.aloc.sai.chat.dto.ChatMessageRequest;
-import com.aloc.sai.chat.dto.ChatMessageResponse;
-import com.aloc.sai.chat.dto.ChatMessageSentEvent;
+import com.aloc.sai.chat.dto.*;
 import com.aloc.sai.common.exception.ApiException;
-import com.aloc.sai.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -84,6 +83,60 @@ public class ChatMessageService {
         }
         return text;
     }
+
+    private static final int DEFAULT_PAGE_SIZE = 30;
+    private static final int MAX_PAGE_SIZE = 100;
+    //이전 메시지 조회용
+    @Transactional(readOnly = true)
+    public ChatMessageListResponse getMessages(Long userId, Long chatRoomId,Long cursor,Integer size){
+        int pageSize = (size == null) ? DEFAULT_PAGE_SIZE : size;
+        if (pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+            throw badRequest("size는 1~100이어야 합니다.");
+        }
+        if(!chatRoomRepository.existsById(chatRoomId)){
+            throw new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다.");
+        }
+        chatInviteRepository.findByUser_UserIdAndChatRoom_ChatRoomId(userId,chatRoomId)
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "채팅방 참여자가 아닙니다."));
+
+        List<ChatMessage> rows = chatMessageRepository.findPage(chatRoomId, cursor, PageRequest.of(0, pageSize + 1));
+        //default보다 큰 31개가 온 경우 뒤에 데이터가 더 있다는 것이기에 true임
+        boolean hasNext=rows.size()>pageSize;
+        //확인용으로 하나 더 가져와서 돌려줄 때는 그 하나를 빼
+        List<ChatMessage> page=hasNext? rows.subList(0,pageSize):rows;
+
+        Long nextCursor=hasNext? page.get(page.size()-1).getChatMessagesId():null;
+        return new ChatMessageListResponse(
+                page.stream().map(ChatMessageResponse::from).toList(),nextCursor,hasNext
+        );
+    }
+
+    //서버가 보내는 입장, 퇴장 메시지
+    @Transactional
+    public void postSystem(ChatRoom room, String text){
+        ChatMessage saved=chatMessageRepository.save(ChatMessage.system(room,text));
+        eventPublisher.publishEvent(new ChatMessageSentEvent(saved.getChatMessagesId()));
+    }
+
+    //메시지 읽지 않은 수
+    public record RoomUpdate(Long userId, ChatRoomUpdateResponse payload) {}
+
+    @Transactional(readOnly = true)
+    public List<RoomUpdate> getRoomUpdates(Long chatMessagesId){
+        ChatMessage m = chatMessageRepository.findById(chatMessagesId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "메시지를 찾을 수 없습니다."));
+
+        Long roomId=m.getChatRoom().getChatRoomId();
+        ChatRoomListResponse.LastMessage last=new ChatRoomListResponse.LastMessage(m.getType(),m.getMessage(),m.getSendAt());
+
+        return chatInviteRepository.findAllWithUserByChatRoomId(roomId).stream()
+                .map(ci->{
+                    long readId=(ci.getLastReadMessageId()==null)? 0L : ci.getLastReadMessageId();
+                    int unread=(int)chatMessageRepository.countByChatRoom_ChatRoomIdAndChatMessagesIdGreaterThanAndTypeNot(roomId, readId, MessageType.SYSTEM);
+                    return new RoomUpdate(ci.getUser().getUserId(),new ChatRoomUpdateResponse(roomId,last,unread));
+                }).toList();
+    }
+
 
     private ApiException badRequest(String message) {
         return new ApiException(HttpStatus.BAD_REQUEST, message);

@@ -1,16 +1,6 @@
 package com.aloc.sai.chat;
 
-import com.aloc.sai.chat.dto.ChatInviteRequest;
-import com.aloc.sai.chat.dto.ChatInviteResponse;
-import com.aloc.sai.chat.dto.ChatReadRequest;
-import com.aloc.sai.chat.dto.ChatReadResponse;
-import com.aloc.sai.chat.dto.ChatRoomDetailResponse;
-import com.aloc.sai.chat.dto.ChatRoomListResponse;
-import com.aloc.sai.chat.dto.ChatRoomResponse;
-import com.aloc.sai.chat.dto.ChatUpdateRequest;
-import com.aloc.sai.chat.dto.ChatUpdateResponse;
-import com.aloc.sai.chat.dto.CreateChatRoomRequest;
-import com.aloc.sai.chat.dto.CreateChatRoomResult;
+import com.aloc.sai.chat.dto.*;
 import com.aloc.sai.common.exception.ErrorResponse;
 import com.aloc.sai.security.LoginUserId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -53,6 +43,7 @@ public class ChatRoomcontroller {
             {"success": false, "message": "사용자를 찾을 수 없습니다.", "code": 404}""";
 
     private final ChatRoomService chatRoomService;
+    private final ChatMessageService chatMessageService;
 
     @Operation(summary = "채팅방 생성",
             description = "DIRECT(1:1), PUBLIC(공개 약속방), PRIVATE(비밀 약속방)을 생성합니다. 친구만 초대할 수 있습니다. "
@@ -272,5 +263,16 @@ public class ChatRoomcontroller {
             @Valid @RequestBody ChatReadRequest request
     ) {
         return chatRoomService.markAsRead(userId, chatRoomId, request);
+    }
+
+    @Operation(summary = "이전 메시지 조회", description = "cursor보다 이전 메시지를 최신순으로 조회합니다. cursor가 없으면 가장 최신부터 조회합니다.")
+    @GetMapping("/{chatRoomId}/messages")
+    public ChatMessageListResponse getMessages(
+            @LoginUserId Long userId,
+            @Parameter(description = "채팅방 ID", example = "12") @PathVariable Long chatRoomId,
+            @Parameter(description = "이 메시지 ID보다 이전 메시지를 조회") @RequestParam(required = false) Long cursor,
+            @Parameter(description = "가져올 개수 (기본 30, 최대 100)") @RequestParam(required = false) Integer size
+    ) {
+        return chatMessageService.getMessages(userId, chatRoomId, cursor, size);
     }
 }

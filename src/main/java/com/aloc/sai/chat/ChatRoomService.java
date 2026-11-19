@@ -36,6 +36,7 @@ public class ChatRoomService {
     private final UserService userService;
     private final AppointmentService appointmentService;
     private final FriendService friendService;
+    private final ChatMessageService chatMessageService;
 
     //채팅방 생성
     @Transactional
@@ -168,7 +169,7 @@ public class ChatRoomService {
 
         long readId = (lastReadId == null) ? 0L : lastReadId;
         int unreadCount = (int) chatMessageRepository
-                .countByChatRoom_ChatRoomIdAndChatMessagesIdGreaterThan(roomId, readId);
+                .countByChatRoom_ChatRoomIdAndChatMessagesIdGreaterThanAndTypeNot(roomId, readId, MessageType.SYSTEM);
 
         ChatRoomListResponse.Opponent opponent=null;
         if(room.getType()==ChatRoomType.DIRECT){
@@ -252,13 +253,16 @@ public class ChatRoomService {
     //채팅방 나가기
     @Transactional
     public void leaveChatRoom(Long userId,Long chatRoomId){
-        //동시에 나가도 방 종료·방장 위임이 꼬이지 않도록 방을 잠근다
+        //동시에 나가도 방 종료, 방장 위임이 꼬이지 않도록 방을 잠근다
         ChatRoom room=chatRoomRepository.findByIdForUpdate(chatRoomId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+        String nickname=userService.getUser(userId).getNickname();
 
         leave(room, userId);
 
-        //TODO:채팅방 나가는 알림
+        if(!room.isClosed()){
+            chatMessageService.postSystem(room,nickname+"님이 나갔습니다.");
+        }
     }
 
     //참여 정보를 지우고 남은 사람이 없으면 방 종료, 방장이 나가면 남은 사람에게 넘김
@@ -359,7 +363,9 @@ public class ChatRoomService {
             members.addAll(newUsers);
             chatInvitedRepository.saveAll(members.stream().map(u -> ChatInvite.of(u, privateRoom)).toList());
 
-            //TODO: 초대 알림(CHAT_INVITE)
+            for(User u:newUsers){
+                chatMessageService.postSystem(privateRoom,u.getNickname()+"님이 들어왔습니다.");
+            }
 
             return new ChatInviteResponse(privateRoom.getChatRoomId(), true, ChatRoomType.PRIVATE,
                     newIds, members.size());
@@ -378,7 +384,7 @@ public class ChatRoomService {
 
         chatInvitedRepository.saveAll(newUsers.stream().map(u->ChatInvite.of(u,room)).toList());
         for (User u:newUsers){
-            //TODO:초대 알림
+            chatMessageService.postSystem(room,u.getNickname()+"님이 들어왔습니다.");
         }
 
         return new ChatInviteResponse(room.getChatRoomId(),false,room.getType(),
@@ -402,7 +408,8 @@ public class ChatRoomService {
         myInvite.markRead(messageId);
 
         int unreadCount = (int) chatMessageRepository
-                .countByChatRoom_ChatRoomIdAndChatMessagesIdGreaterThan(chatRoomId, myInvite.getLastReadMessageId());
+                .countByChatRoom_ChatRoomIdAndChatMessagesIdGreaterThanAndTypeNot(
+                        chatRoomId, myInvite.getLastReadMessageId(), MessageType.SYSTEM);
 
         return new ChatReadResponse(chatRoomId,myInvite.getLastReadMessageId(),unreadCount);
     }
