@@ -364,7 +364,7 @@ public class ChatRoomService {
             chatInvitedRepository.saveAll(members.stream().map(u -> ChatInvite.of(u, privateRoom)).toList());
 
             for(User u:newUsers){
-                chatMessageService.postSystem(room,u.getNickname()+"님이 들어왔습니다.");
+                chatMessageService.postSystem(privateRoom,u.getNickname()+"님이 들어왔습니다.");
             }
 
             return new ChatInviteResponse(privateRoom.getChatRoomId(), true, ChatRoomType.PRIVATE,
