@@ -9,6 +9,7 @@ import com.aloc.sai.friend.FriendRequestRepository;
 import com.aloc.sai.friend.FriendService;
 import com.aloc.sai.friend.FriendshipRepository;
 import com.aloc.sai.friend.dto.FriendRequestAction;
+import com.aloc.sai.notification.NotificationRepository;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import com.aloc.sai.user.UserService;
@@ -48,6 +49,8 @@ class ChatWithdrawTest {
     @Autowired
     private FriendshipRepository friendshipRepository;
     @Autowired
+    private NotificationRepository notificationRepository;
+    @Autowired
     private RefreshTokenRepository refreshTokenRepository;
     @Autowired
     private UserRepository userRepository;
@@ -76,6 +79,7 @@ class ChatWithdrawTest {
         chatRoomRepository.deleteAll();
         friendRequestRepository.deleteAll();
         friendshipRepository.deleteAll();
+        notificationRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }

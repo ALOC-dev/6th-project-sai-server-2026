@@ -266,6 +266,22 @@ public class ChatRoomcontroller {
     }
 
     @Operation(summary = "이전 메시지 조회", description = "cursor보다 이전 메시지를 최신순으로 조회합니다. cursor가 없으면 가장 최신부터 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "size가 범위를 벗어남",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "size는 1~100이어야 합니다.", "code": 400}"""))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "403", description = "채팅방 참여자가 아님",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = NOT_CHAT_MEMBER_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "채팅방 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = CHAT_ROOM_NOT_FOUND_EXAMPLE)))
+    })
     @GetMapping("/{chatRoomId}/messages")
     public ChatMessageListResponse getMessages(
             @LoginUserId Long userId,
@@ -274,5 +290,42 @@ public class ChatRoomcontroller {
             @Parameter(description = "가져올 개수 (기본 30, 최대 100)") @RequestParam(required = false) Integer size
     ) {
         return chatMessageService.getMessages(userId, chatRoomId, cursor, size);
+    }
+
+    @Operation(summary = "모집 중 약속방 참여",
+            description = "방장이 친구인 모집 중(RECRUITING) PUBLIC 약속방에 스스로 참여합니다. "
+                    + "이미 참여 중이어도 200이며, 응답은 채팅방 상세와 같습니다. 방에 입장 안내 메시지가 올라갑니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "참여 성공 (이미 참여 중이어도 200)"),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "403", description = "PUBLIC 방이 아니거나 방장의 친구가 아님",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "PUBLIC 아님", value = """
+                                            {"success": false, "message": "공개 약속방만 참여할 수 있습니다.", "code": 403}"""),
+                                    @ExampleObject(name = "친구 아님", value = """
+                                            {"success": false, "message": "방장의 친구만 참여할 수 있습니다.", "code": 403}""")
+                            })),
+            @ApiResponse(responseCode = "404", description = "채팅방 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = CHAT_ROOM_NOT_FOUND_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "종료된 방, 모집이 끝난 약속, 정원 가득 참",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "종료된 방", value = CHAT_ROOM_CLOSED_EXAMPLE),
+                                    @ExampleObject(name = "모집 끝남", value = """
+                                            {"success": false, "message": "모집이 끝난 약속입니다.", "code": 409}"""),
+                                    @ExampleObject(name = "정원 가득", value = """
+                                            {"success": false, "message": "모집 정원이 가득 찼습니다.", "code": 409}""")
+                            }))
+    })
+    @PostMapping("/{chatRoomId}/members/me")
+    public ChatRoomDetailResponse joinRecruitingRoom(
+            @LoginUserId Long userId,
+            @Parameter(description = "참여할 약속방 ID", example = "18") @PathVariable Long chatRoomId
+    ) {
+        return chatRoomService.joinRecruitingRoom(userId, chatRoomId);
     }
 }

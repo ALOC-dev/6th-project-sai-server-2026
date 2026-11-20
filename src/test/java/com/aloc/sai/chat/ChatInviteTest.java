@@ -1,5 +1,6 @@
 package com.aloc.sai.chat;
 
+import com.aloc.sai.appointment.AppointmentRepository;
 import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.chat.dto.ChatInviteRequest;
 import com.aloc.sai.chat.dto.ChatInviteResponse;
@@ -9,6 +10,7 @@ import com.aloc.sai.friend.FriendRequestRepository;
 import com.aloc.sai.friend.FriendService;
 import com.aloc.sai.friend.FriendshipRepository;
 import com.aloc.sai.friend.dto.FriendRequestAction;
+import com.aloc.sai.notification.NotificationRepository;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +34,12 @@ class ChatInviteTest {
     private ChatRoomRepository chatRoomRepository;
     @Autowired
     private ChatInviteRepository chatInviteRepository;
+    @Autowired
+    private ChatMessageRepository chatMessageRepository;
+    @Autowired
+    private AppointmentRepository appointmentRepository;
+    @Autowired
+    private NotificationRepository notificationRepository;
     @Autowired
     private FriendService friendService;
     @Autowired
@@ -61,10 +69,13 @@ class ChatInviteTest {
 
     @AfterEach
     void cleanUp() {
+        appointmentRepository.deleteAll();
+        chatMessageRepository.deleteAll();
         chatInviteRepository.deleteAll();
         chatRoomRepository.deleteAll();
         friendRequestRepository.deleteAll();
         friendshipRepository.deleteAll();
+        notificationRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }

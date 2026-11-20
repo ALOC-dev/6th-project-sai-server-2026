@@ -51,6 +51,47 @@ public class Appointment {
         return a;
     }
 
+    //모집 중 약속이 없는 방(DIRECT, PRIVATE)에서 바로 확정할 때
+    public static Appointment confirmed(ChatRoom room, User by, LocalDateTime departAt, LocalDateTime returnAt) {
+        Appointment a = new Appointment();
+        a.status = AppointmentStatus.CONFIRMED;
+        a.chatRoom = room;
+        a.user = by;
+        a.departAt = departAt;
+        a.returnAt = returnAt;
+        a.createdAt = LocalDateTime.now();
+        return a;
+    }
+
+    //모집 중(또는 취소된) 약속을 확정. 확정한 사람이 약속 주인이 된다
+    public void confirm(User by, LocalDateTime departAt, LocalDateTime returnAt) {
+        this.status = AppointmentStatus.CONFIRMED;
+        this.user = by;
+        this.departAt = departAt;
+        this.returnAt = returnAt;
+    }
+
+    public void reschedule(LocalDateTime departAt, LocalDateTime returnAt) {
+        this.departAt = departAt;
+        this.returnAt = returnAt;
+    }
+
+    public void changeMaxMembers(Integer maxMembers) {
+        this.maxMembers = maxMembers;
+    }
+
+    public void cancel() {
+        this.status = AppointmentStatus.CANCELED;
+    }
+
+    public boolean isRecruiting() {
+        return status == AppointmentStatus.RECRUITING;
+    }
+
+    public boolean isCanceled() {
+        return status == AppointmentStatus.CANCELED;
+    }
+
     public void changeHost(User user){
         this.user=user;
     }

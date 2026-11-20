@@ -391,6 +391,41 @@ public class ChatRoomService {
                 newIds, memberIds.size()+newUsers.size());
     }
 
+    //모집 중인 PUBLIC 약속방에 스스로 참여하기
+    @Transactional
+    public ChatRoomDetailResponse joinRecruitingRoom(Long userId, Long chatRoomId){
+        ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+
+        if(room.getType()!=ChatRoomType.PUBLIC){
+            throw new ApiException(HttpStatus.FORBIDDEN,"공개 약속방만 참여할 수 있습니다.");
+        }
+        if(room.isClosed()){
+            throw new ApiException(HttpStatus.CONFLICT,"종료된 채팅방입니다.");
+        }
+
+        List<ChatInvite> invites = chatInvitedRepository.findAllWithUserByChatRoomId(chatRoomId);
+        boolean alreadyMember=invites.stream()
+                .anyMatch(ci->ci.getUser().getUserId().equals(userId));
+        if(alreadyMember){
+            return getChatRoomDetail(userId, chatRoomId);
+        }
+
+        //방장 친구만 침여가능
+        if(room.getHost()==null || !friendService.areFriends(userId,room.getHost().getUserId())){
+            throw new ApiException(HttpStatus.FORBIDDEN, "방장의 친구만 참여할 수 있습니다.");
+        }
+
+        //약속 참여가능한지 확인로직
+        appointmentService.validateJoinable(chatRoomId,invites.size());
+
+        User me=userService.getUser(userId);
+        chatInvitedRepository.save(ChatInvite.of(me, room));
+        chatMessageService.postSystem(room, me.getNickname() + "님이 들어왔습니다.");
+
+        return getChatRoomDetail(userId, chatRoomId);
+    }
+
     //읽음 처리
     @Transactional
     public ChatReadResponse markAsRead(Long userId, Long chatRoomId,ChatReadRequest req){
