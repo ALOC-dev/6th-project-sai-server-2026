@@ -10,6 +10,8 @@ import com.aloc.sai.friend.dto.FriendRequestListResponse;
 import com.aloc.sai.friend.dto.FriendRequestRespondRequest;
 import com.aloc.sai.friend.dto.FriendRequestRespondResponse;
 import com.aloc.sai.security.LoginUserId;
+import com.aloc.sai.timetable.Semester;
+import com.aloc.sai.timetable.dto.TimetableResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -220,6 +222,33 @@ public class FriendController {
             @RequestParam(defaultValue = "false") boolean available
     ) {
         return friendService.getFriends(userId, available);
+    }
+
+    @Operation(summary = "친구 시간표 조회",
+            description = "친구의 학기별 시간표와 수업 목록을 요일·시작 시각순으로 조회합니다. 응답 구조는 내 시간표 조회와 같습니다. "
+                    + "academicYear·semester를 보내지 않으면 현재 학기(KST)입니다. 친구가 시간표를 만들지 않았으면 timetableId·updatedAt이 null이고 items는 빈 배열입니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "academicYear/semester 하나만 전달, 값 오류",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "academicYear와 semester는 함께 보내야 합니다.", "code": 400}"""))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "403", description = "친구가 아님 (자기 자신, 없는 사용자 포함)",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "친구의 시간표만 볼 수 있습니다.", "code": 403}""")))
+    })
+    @GetMapping("/friends/{friendId}/timetable")
+    public TimetableResponse getFriendTimetable(
+            @LoginUserId Long userId,
+            @Parameter(description = "시간표를 볼 친구의 유저 ID", example = "2") @PathVariable Long friendId,
+            @Parameter(description = "연도 (semester와 함께)", example = "2026") @RequestParam(required = false) Integer academicYear,
+            @Parameter(description = "학기 (academicYear와 함께)", example = "SECOND") @RequestParam(required = false) Semester semester
+    ) {
+        return friendService.getFriendTimetable(userId, friendId, academicYear, semester);
     }
 
     @Operation(summary = "친구 삭제",

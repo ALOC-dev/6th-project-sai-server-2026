@@ -47,9 +47,18 @@ public class TimetableService {
         if (today && (academicYear != null || semester != null)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "today와 academicYear·semester는 함께 보낼 수 없습니다.");
         }
-        AcademicTerm term = CourseService.resolveTerm(academicYear, semester);
         Weekday todayWeekday = today ? Weekday.from(LocalDate.now(AcademicTerm.KST).getDayOfWeek()) : null;
+        return findTimetable(userId, CourseService.resolveTerm(academicYear, semester), todayWeekday);
+    }
 
+    // 다른 사용자의 학기별 시간표. 친구인지는 확인하지 않으므로 호출하는 쪽(FriendService)이 먼저 확인해야 한다.
+    @Transactional(readOnly = true)
+    public TimetableResponse getTimetableOf(Long userId, Integer academicYear, Semester semester) {
+        return findTimetable(userId, CourseService.resolveTerm(academicYear, semester), null);
+    }
+
+    // todayWeekday가 있으면 그 요일 수업만 준다.
+    private TimetableResponse findTimetable(Long userId, AcademicTerm term, Weekday todayWeekday) {
         return timetableRepository.findByUserUserIdAndAcademicYearAndSemester(userId, term.academicYear(), term.semester())
                 .map(timetable -> TimetableResponse.of(timetable,
                         timetableItemRepository.findAllWithDetailsByTimetableId(timetable.getTimetableId()).stream()

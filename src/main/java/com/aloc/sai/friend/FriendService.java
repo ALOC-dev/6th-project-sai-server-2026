@@ -12,8 +12,10 @@ import com.aloc.sai.friend.dto.FriendshipStatus;
 import com.aloc.sai.notification.NotificationService;
 import com.aloc.sai.notification.NotificationType;
 import com.aloc.sai.timetable.AcademicTerm;
+import com.aloc.sai.timetable.Semester;
 import com.aloc.sai.timetable.TimetableItem;
 import com.aloc.sai.timetable.TimetableService;
+import com.aloc.sai.timetable.dto.TimetableResponse;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserService;
 import com.aloc.sai.user.UserWithdrawEvent;
@@ -202,6 +204,15 @@ public class FriendService {
         friendRequestRepository.findByActivePairKey(FriendRequest.pairKey(userId, friendId))
                 .ifPresent(FriendRequest::endFriendship);
         friendshipRepository.delete(friendship);
+    }
+
+    // 친구의 학기별 시간표. 친구가 아니면(자기 자신, 없는 사용자 포함) 403이다.
+    @Transactional(readOnly = true)
+    public TimetableResponse getFriendTimetable(Long userId, Long friendId, Integer academicYear, Semester semester) {
+        if (!areFriends(userId, friendId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "친구의 시간표만 볼 수 있습니다.");
+        }
+        return timetableService.getTimetableOf(friendId, academicYear, semester);
     }
 
     // 다른 도메인에서 친구에게만 허용하는 기능(시간표 조회 등)의 권한 확인에 쓴다.
