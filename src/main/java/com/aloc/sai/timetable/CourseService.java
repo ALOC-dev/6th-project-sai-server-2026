@@ -69,6 +69,7 @@ public class CourseService {
     // 과목: 이름(공백·대소문자 무시)이 같고 같은 요일에 시간이 겹치는 수업 시간이 있는 과목이 정확히 하나면 매칭하고,
     //       시간·강의실·건물은 학교 데이터 값으로 보정한다. 같은 이름의 분반이 여럿 남으면 잘못 연결하지 않도록 매칭하지 않는다.
     // 건물: 과목으로 정해지지 않으면 읽은 건물명(공백 무시)과 이름이 같은 건물이 정확히 하나일 때 매칭한다.
+    //       건물이 정해지면 건물명도 그 건물의 이름으로 줘서 ID와 이름이 서로 다른 건물을 가리키지 않게 한다.
     // 과목명·요일·시간이 빠졌거나 시작 ≥ 종료인 수업은 등록할 수 없으므로 버린다.
     // 인식은 사용자당 학기에 한두 번이라, 그 학기 과목을 한 번에 읽어 메모리에서 맞춘다.
     @Transactional(readOnly = true)
@@ -108,7 +109,8 @@ public class CourseService {
         if (!oneCourse) {
             return new TimetableRecognitionResponse.RecognizedItem(null, null, null,
                     recognized.courseName().strip(), recognized.dayOfWeek(), recognized.startTime(), recognized.endTime(),
-                    buildingByName == null ? null : buildingByName.getBuildingId(), buildingName,
+                    buildingByName == null ? null : buildingByName.getBuildingId(),
+                    buildingByName == null ? buildingName : buildingByName.getBuildingName(),
                     blankToNull(recognized.room()), recognized.confidence());
         }
         CourseSchedule schedule = matches.getFirst();
@@ -117,7 +119,7 @@ public class CourseService {
         return new TimetableRecognitionResponse.RecognizedItem(course.getCourseId(), course.getSubjectNo(), course.getDvclNo(),
                 course.getCourseName(), schedule.getDayOfWeek(), schedule.getStartTime(), schedule.getEndTime(),
                 building == null ? null : building.getBuildingId(),
-                buildingName != null ? buildingName : (building == null ? null : building.getBuildingName()),
+                building == null ? buildingName : building.getBuildingName(),
                 schedule.getRoom() != null ? schedule.getRoom() : blankToNull(recognized.room()),
                 recognized.confidence());
     }

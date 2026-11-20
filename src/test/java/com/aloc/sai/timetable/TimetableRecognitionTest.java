@@ -107,9 +107,21 @@ class TimetableRecognitionTest {
                 .andExpect(jsonPath("$.recognizedItems[0].startTime").value("09:00"))
                 .andExpect(jsonPath("$.recognizedItems[0].endTime").value("10:15"))
                 .andExpect(jsonPath("$.recognizedItems[0].buildingId").value(engineering.getBuildingId()))
-                .andExpect(jsonPath("$.recognizedItems[0].buildingName").value("공학관"))
+                .andExpect(jsonPath("$.recognizedItems[0].buildingName").value("제1공학관"))
                 .andExpect(jsonPath("$.recognizedItems[0].room").value("326호"))
                 .andExpect(jsonPath("$.recognizedItems[0].confidence").value(0.81));
+    }
+
+    @Test
+    void 매칭된_과목의_건물이_읽은_건물명과_달라도_건물_ID와_이름은_학교_데이터로_맞춘다() throws Exception {
+        saveCourse(TERM, "01234", "01", "자료구조", Weekday.MON, "09:00", "10:15", science, "101호");
+        // 이미지에서는 다른 건물(제1공학관)로 읽혔다.
+        recognizes(recognized("자료구조", Weekday.MON, "09:00", "10:15", "제1공학관", "326호", 0.9));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].buildingId").value(science.getBuildingId()))
+                .andExpect(jsonPath("$.recognizedItems[0].buildingName").value("과학기술관"))
+                .andExpect(jsonPath("$.recognizedItems[0].room").value("101호"));
     }
 
     @Test
@@ -160,7 +172,7 @@ class TimetableRecognitionTest {
                 .andExpect(jsonPath("$.recognizedItems[0].courseName").value("캡스톤디자인"))
                 .andExpect(jsonPath("$.recognizedItems[0].startTime").value("15:00"))
                 .andExpect(jsonPath("$.recognizedItems[0].buildingId").value(science.getBuildingId()))
-                .andExpect(jsonPath("$.recognizedItems[0].buildingName").value("과학 기술관"))
+                .andExpect(jsonPath("$.recognizedItems[0].buildingName").value("과학기술관"))
                 .andExpect(jsonPath("$.recognizedItems[0].room").value("501호"))
                 .andExpect(jsonPath("$.recognizedItems[1].buildingId").value(nullValue()))
                 .andExpect(jsonPath("$.recognizedItems[1].buildingName").value("없는관"))

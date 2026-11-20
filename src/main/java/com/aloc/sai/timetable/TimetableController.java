@@ -80,7 +80,7 @@ public class TimetableController {
             description = "multipart/form-data의 image 파트로 시간표 이미지를 올리면 수업 목록을 읽어 돌려줍니다. 저장하지 않으며, 사용자가 고친 뒤 일괄 등록 API로 저장합니다. "
                     + "읽은 수업은 academicYear·semester 학기(생략 시 현재 학기, KST)의 학교 과목과 과목명(공백 무시)과 요일·시간으로 맞춥니다. "
                     + "같은 요일에 시간이 겹치는 과목이 정확히 하나면 courseId·subjectNo·dvclNo를 채우고 과목명·시간·강의실·건물을 학교 데이터로 보정하며, 아니면 이미지에서 읽은 값을 그대로 줍니다. "
-                    + "건물은 읽은 건물명과 이름이 같은 건물로 buildingId를 채웁니다. 결과는 요일·시작 시각순입니다. "
+                    + "건물은 읽은 건물명과 이름이 같은 건물로 buildingId를 채우고, 건물이 정해지면 buildingName도 그 건물의 이름입니다(정해지지 않으면 읽은 값). 결과는 요일·시작 시각순입니다. "
                     + "현재는 인식 기능(AI 서버 연동)을 준비 중이라 이미지 검증을 통과하면 503을 반환합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "인식 성공 (인식된 수업이 없으면 빈 배열)"),
