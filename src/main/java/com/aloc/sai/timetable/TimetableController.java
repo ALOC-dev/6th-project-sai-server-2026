@@ -6,6 +6,7 @@ import com.aloc.sai.timetable.dto.TimetableItemCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateResponse;
 import com.aloc.sai.timetable.dto.TimetableItemUpdateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemUpdateResponse;
+import com.aloc.sai.timetable.dto.TimetableRecognitionResponse;
 import com.aloc.sai.timetable.dto.TimetableResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -25,8 +27,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Timetable", description = "건물 목록·과목 검색, 시간표 API")
 @RestController
@@ -43,6 +47,7 @@ public class TimetableController {
             {"success": false, "message": "시간표 수업을 찾을 수 없습니다.", "code": 404}""";
 
     private final TimetableService timetableService;
+    private final TimetableRecognitionService timetableRecognitionService;
 
     @Operation(summary = "내 시간표 조회",
             description = "학기별 내 시간표와 수업 목록을 요일·시작 시각순으로 조회합니다. academicYear·semester를 보내지 않으면 현재 학기(KST)입니다. "
@@ -69,6 +74,44 @@ public class TimetableController {
             @Parameter(description = "오늘 요일 수업만", example = "false") @RequestParam(defaultValue = "false") boolean today
     ) {
         return timetableService.getMyTimetable(userId, academicYear, semester, today);
+    }
+
+    @Operation(summary = "시간표 이미지 인식",
+            description = "multipart/form-data의 image 파트로 시간표 이미지를 올리면 수업 목록을 읽어 돌려줍니다. 저장하지 않으며, 사용자가 고친 뒤 일괄 등록 API로 저장합니다. "
+                    + "읽은 수업은 academicYear·semester 학기(생략 시 현재 학기, KST)의 학교 과목과 과목명(공백 무시)과 요일·시간으로 맞춥니다. "
+                    + "같은 요일에 시간이 겹치는 과목이 정확히 하나면 courseId·subjectNo·dvclNo를 채우고 과목명·시간·강의실·건물을 학교 데이터로 보정하며, 아니면 이미지에서 읽은 값을 그대로 줍니다. "
+                    + "건물은 읽은 건물명과 이름이 같은 건물로 buildingId를 채웁니다. 결과는 요일·시작 시각순입니다. "
+                    + "현재는 인식 기능(AI 서버 연동)을 준비 중이라 이미지 검증을 통과하면 503을 반환합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "인식 성공 (인식된 수업이 없으면 빈 배열)"),
+            @ApiResponse(responseCode = "400", description = "이미지 누락, 지원하지 않는 형식(JPG·PNG·HEIC만 가능), academicYear/semester 하나만 전달",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "이미지 누락", value = """
+                                            {"success": false, "message": "시간표 이미지를 첨부해 주세요.", "code": 400}"""),
+                                    @ExampleObject(name = "지원하지 않는 형식", value = """
+                                            {"success": false, "message": "JPG, PNG, HEIC 이미지만 인식할 수 있습니다.", "code": 400}""")
+                            })),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "413", description = "파일 용량 초과 (10MB)",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "잘못된 요청입니다.", "code": 413}"""))),
+            @ApiResponse(responseCode = "503", description = "인식 기능 준비 중",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "시간표 이미지 인식은 아직 준비 중입니다. 수업을 직접 등록해 주세요.", "code": 503}""")))
+    })
+    @PostMapping(value = "/recognition", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public TimetableRecognitionResponse recognize(
+            @LoginUserId Long userId,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            @Parameter(description = "매칭할 과목의 연도 (semester와 함께)", example = "2026") @RequestParam(required = false) Integer academicYear,
+            @Parameter(description = "매칭할 과목의 학기 (academicYear와 함께)", example = "SECOND") @RequestParam(required = false) Semester semester
+    ) {
+        return timetableRecognitionService.recognize(image, academicYear, semester);
     }
 
     @Operation(summary = "시간표 수업 등록",
