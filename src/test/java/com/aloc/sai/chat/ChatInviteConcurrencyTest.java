@@ -9,6 +9,7 @@ import com.aloc.sai.friend.FriendRequestRepository;
 import com.aloc.sai.friend.FriendService;
 import com.aloc.sai.friend.FriendshipRepository;
 import com.aloc.sai.friend.dto.FriendRequestAction;
+import com.aloc.sai.notification.NotificationRepository;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -41,7 +42,11 @@ class ChatInviteConcurrencyTest {
     @Autowired
     private ChatInviteRepository chatInviteRepository;
     @Autowired
+    private ChatMessageRepository chatMessageRepository;
+    @Autowired
     private AppointmentRepository appointmentRepository;
+    @Autowired
+    private NotificationRepository notificationRepository;
     @Autowired
     private FriendRequestRepository friendRequestRepository;
     @Autowired
@@ -65,10 +70,12 @@ class ChatInviteConcurrencyTest {
     @AfterEach
     void cleanUp() {
         appointmentRepository.deleteAll();
+        chatMessageRepository.deleteAll();
         chatInviteRepository.deleteAll();
         chatRoomRepository.deleteAll();
         friendRequestRepository.deleteAll();
         friendshipRepository.deleteAll();
+        notificationRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
