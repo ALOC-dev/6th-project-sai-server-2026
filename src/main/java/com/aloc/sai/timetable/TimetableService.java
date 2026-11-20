@@ -1,6 +1,7 @@
 package com.aloc.sai.timetable;
 
 import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.timetable.dto.TimetableItemBulkCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateResponse;
 import com.aloc.sai.timetable.dto.TimetableItemResponse;
@@ -102,6 +103,38 @@ public class TimetableService {
                 created.stream().sorted(ITEM_ORDER).map(TimetableItemResponse::from).toList());
     }
 
+    // 이미지 인식 결과를 한 번에 저장한다. 수업이 하나도 없는 시간표에만 쓸 수 있어 기존 수업과의 겹침은 볼 필요가 없고,
+    // 요청 항목끼리만 겹침을 본다. 하나라도 잘못되면 아무것도 만들지 않는다.
+    // 사용자 행을 잠그므로 같은 사용자의 일괄 등록이 동시에 와도 둘 다 빈 시간표 검사를 통과하지 않는다.
+    @Transactional
+    public TimetableItemCreateResponse addItems(Long userId, TimetableItemBulkCreateRequest request) {
+        if (request.academicYear() == null || request.semester() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "연도와 학기를 입력해 주세요.");
+        }
+        if (request.items() == null || request.items().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "등록할 수업을 1개 이상 보내 주세요.");
+        }
+        AcademicTerm term = new AcademicTerm(request.academicYear(), request.semester());
+        User user = userService.getUserForUpdate(userId);
+
+        Timetable timetable = findOrCreateTimetable(user, term);
+        if (timetable.getTimetableId() != null && timetableItemRepository.existsByTimetableTimetableId(timetable.getTimetableId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "이미 등록된 수업이 있는 시간표에는 일괄 등록할 수 없습니다.");
+        }
+
+        List<TimetableItem> items = new ArrayList<>();
+        for (TimetableItemBulkCreateRequest.BulkItem bulkItem : request.items()) {
+            TimetableItem item = toBulkItem(timetable, term, bulkItem);
+            if (items.stream().anyMatch(other -> overlaps(other, item))) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "보낸 수업끼리 같은 요일에 시간이 겹칩니다.");
+            }
+            items.add(item);
+        }
+        timetable.touch(LocalDateTime.now());
+        return new TimetableItemCreateResponse(timetable.getTimetableId(),
+                timetableItemRepository.saveAll(items).stream().sorted(ITEM_ORDER).map(TimetableItemResponse::from).toList());
+    }
+
     @Transactional
     public TimetableItemUpdateResponse updateItem(Long userId, Long timetableItemId, TimetableItemUpdateRequest request) {
         if (request.isEmpty()) {
@@ -194,6 +227,31 @@ public class TimetableService {
                 request.startTime(), request.endTime(), building, room));
     }
 
+    // 일괄 등록의 항목 하나. 과목이 연결돼도 시간·강의실은 사용자가 보낸 값을 쓴다(인식 결과를 고쳤을 수 있다).
+    private TimetableItem toBulkItem(Timetable timetable, AcademicTerm term, TimetableItemBulkCreateRequest.BulkItem item) {
+        if (item == null || item.courseName() == null || item.dayOfWeek() == null
+                || item.startTime() == null || item.endTime() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "수업마다 과목명·요일·시작·종료 시간을 모두 입력해 주세요.");
+        }
+        String courseName = normalizeCourseName(item.courseName());
+        validateTime(item.startTime(), item.endTime());
+        String room = item.room() == null ? null : normalizeRoom(item.room());
+        Building building = item.buildingId() == null ? null : findBuilding(item.buildingId());
+        Course course = item.courseId() == null ? null : findCourseInTerm(item.courseId(), term);
+        return new TimetableItem(timetable, course, courseName, item.dayOfWeek(),
+                item.startTime(), item.endTime(), building, room);
+    }
+
+    // 다른 학기 과목을 연결하면 시간표 학기와 과목 학기가 어긋나므로 막는다.
+    private Course findCourseInTerm(Long courseId, AcademicTerm term) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "과목을 찾을 수 없습니다."));
+        if (!course.getAcademicYear().equals(term.academicYear()) || course.getSemester() != term.semester()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "등록하려는 학기의 과목이 아닙니다.");
+        }
+        return course;
+    }
+
     private Timetable findOrCreateTimetable(User user, AcademicTerm term) {
         return timetableRepository.findByUserUserIdAndAcademicYearAndSemester(
                         user.getUserId(), term.academicYear(), term.semester())
@@ -228,6 +286,12 @@ public class TimetableService {
         return item.getDayOfWeek() == schedule.getDayOfWeek()
                 && item.getStartTime().isBefore(schedule.getEndTime())
                 && schedule.getStartTime().isBefore(item.getEndTime());
+    }
+
+    private static boolean overlaps(TimetableItem item, TimetableItem other) {
+        return item.getDayOfWeek() == other.getDayOfWeek()
+                && item.getStartTime().isBefore(other.getEndTime())
+                && other.getStartTime().isBefore(item.getEndTime());
     }
 
     private static void validateTime(LocalTime startTime, LocalTime endTime) {
