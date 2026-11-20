@@ -20,8 +20,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,6 +58,20 @@ public class TimetableService {
                                 .map(TimetableItemResponse::from)
                                 .toList()))
                 .orElseGet(() -> TimetableResponse.empty(term));
+    }
+
+    // 여러 사용자의 그날(KST 날짜 기준 학기·요일) 수업을 사용자별로 시작 시각순으로 준다. 수업이 없는 사용자는 키가 없다.
+    @Transactional(readOnly = true)
+    public Map<Long, List<TimetableItem>> getClassesOn(Collection<Long> userIds, LocalDate date) {
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        AcademicTerm term = AcademicTerm.of(date);
+        return timetableItemRepository.findAllByUserIdsAndTermAndDay(
+                        userIds, term.academicYear(), term.semester(), Weekday.from(date.getDayOfWeek()))
+                .stream()
+                .collect(Collectors.groupingBy(item -> item.getTimetable().getUser().getUserId(),
+                        LinkedHashMap::new, Collectors.toList()));
     }
 
     // 같은 사용자의 시간표 쓰기는 사용자 행을 잠그고 차례로 처리한다.

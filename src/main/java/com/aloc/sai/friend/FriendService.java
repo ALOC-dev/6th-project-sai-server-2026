@@ -11,6 +11,9 @@ import com.aloc.sai.friend.dto.FriendSearchResponse;
 import com.aloc.sai.friend.dto.FriendshipStatus;
 import com.aloc.sai.notification.NotificationService;
 import com.aloc.sai.notification.NotificationType;
+import com.aloc.sai.timetable.AcademicTerm;
+import com.aloc.sai.timetable.TimetableItem;
+import com.aloc.sai.timetable.TimetableService;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserService;
 import com.aloc.sai.user.UserWithdrawEvent;
@@ -23,9 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -35,6 +40,7 @@ public class FriendService {
     private final FriendRequestRepository friendRequestRepository;
     private final FriendshipRepository friendshipRepository;
     private final NotificationService notificationService;
+    private final TimetableService timetableService;
 
     // 초대 링크 도메인은 FE·딥링크 설정과 함께 확정되므로 설정값으로 둔다.
     @Value("${friend.invite-base-url}")
@@ -149,15 +155,42 @@ public class FriendService {
         return FriendRequestRespondResponse.of(request, friendship.getFriendshipId());
     }
 
-    // 공강 필터(available)는 시간표 도메인이 생기면 적용한다. 지금은 모든 친구의 오늘 수업이 비어 있어 전원이 공강이다.
+    // 각 친구의 오늘(KST) 수업을 함께 준다. available=true면 지금 수업 중이 아닌 친구만 준다(오늘 수업이 없는 친구 포함).
     @Transactional(readOnly = true)
     public FriendListResponse getFriends(Long userId, boolean available) {
-        List<FriendListResponse.FriendItem> friends = friendshipRepository.findAllWithUsersByUserId(userId).stream()
-                .map(friendship -> FriendListResponse.FriendItem.of(
-                        friendship.getFriendOf(userId), friendship.getFriendshipId(), List.of()))
+        return getFriends(userId, available, LocalDateTime.now(AcademicTerm.KST));
+    }
+
+    // 기준 시각을 받아 공강 여부를 판단한다. 수업은 [시작, 종료)로 보며, 종료 시각에는 공강이다.
+    @Transactional(readOnly = true)
+    public FriendListResponse getFriends(Long userId, boolean available, LocalDateTime now) {
+        List<Friendship> friendships = friendshipRepository.findAllWithUsersByUserId(userId);
+        Map<Long, List<TimetableItem>> classesByFriend = timetableService.getClassesOn(
+                friendships.stream().map(friendship -> friendship.getFriendOf(userId).getUserId()).toList(),
+                now.toLocalDate());
+        LocalTime time = now.toLocalTime();
+
+        List<FriendListResponse.FriendItem> friends = friendships.stream()
+                .map(friendship -> {
+                    User friend = friendship.getFriendOf(userId);
+                    List<TimetableItem> classes = classesByFriend.getOrDefault(friend.getUserId(), List.of());
+                    return new FriendWithClasses(friend, friendship.getFriendshipId(), classes);
+                })
+                .filter(entry -> !available || entry.classes().stream().noneMatch(item -> isInClass(item, time)))
+                .map(entry -> FriendListResponse.FriendItem.of(entry.friend(), entry.friendshipId(),
+                        entry.classes().stream()
+                                .map(item -> new FriendListResponse.ClassTime(item.getStartTime(), item.getEndTime()))
+                                .toList()))
                 .sorted(Comparator.comparing(FriendListResponse.FriendItem::nickname))
                 .toList();
         return new FriendListResponse(friends);
+    }
+
+    private static boolean isInClass(TimetableItem item, LocalTime time) {
+        return !time.isBefore(item.getStartTime()) && time.isBefore(item.getEndTime());
+    }
+
+    private record FriendWithClasses(User friend, Long friendshipId, List<TimetableItem> classes) {
     }
 
     // 친구 관계 삭제는 반드시 이 메서드(또는 탈퇴 정리)를 거쳐야 한다.
