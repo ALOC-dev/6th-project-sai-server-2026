@@ -205,8 +205,8 @@ public class FriendController {
 
     @Operation(summary = "친구 목록 조회",
             description = "친구 목록과 각 친구의 오늘 수업 시간을 닉네임 가나다순으로 반환합니다. "
-                    + "공강 여부와 남은 공강 시간은 FE가 todayClasses와 현재 시각으로 계산합니다. "
-                    + "현재는 시간표 기능이 없어 todayClasses가 항상 빈 배열이고, available=true여도 전체 친구를 반환합니다.")
+                    + "todayClasses는 현재 학기 시간표에서 오늘 요일(KST) 수업입니다. "
+                    + "공강 여부와 남은 공강 시간은 FE가 todayClasses와 현재 시각으로 계산합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공 (친구가 없으면 빈 배열)"),
             @ApiResponse(responseCode = "401", description = "인증 실패",

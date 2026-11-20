@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +43,20 @@ public interface TimetableItemRepository extends JpaRepository<TimetableItem, Lo
                           @Param("startTime") LocalTime startTime,
                           @Param("endTime") LocalTime endTime,
                           @Param("excludeItemId") Long excludeItemId);
+
+    // 여러 사용자의 특정 학기·요일 수업. 친구 목록의 오늘 수업 조회에 쓴다.
+    @Query("""
+            select i from TimetableItem i
+            join fetch i.timetable t
+            where t.user.userId in :userIds
+              and t.academicYear = :academicYear and t.semester = :semester
+              and i.dayOfWeek = :dayOfWeek
+            order by i.startTime
+            """)
+    List<TimetableItem> findAllByUserIdsAndTermAndDay(@Param("userIds") Collection<Long> userIds,
+                                                      @Param("academicYear") Integer academicYear,
+                                                      @Param("semester") Semester semester,
+                                                      @Param("dayOfWeek") Weekday dayOfWeek);
 
     boolean existsByTimetableTimetableIdAndCourseCourseId(Long timetableId, Long courseId);
 
