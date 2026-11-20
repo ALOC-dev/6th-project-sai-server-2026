@@ -120,7 +120,7 @@ public class TimetableController {
                     + "시간·강의실은 보낸 값을 그대로 씁니다. 보낸 수업끼리 같은 요일에 시간이 겹치면 400이고, 하나라도 잘못되면 아무것도 만들지 않습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공 (createdItems는 요일·시작 시각순)"),
-            @ApiResponse(responseCode = "400", description = "연도·학기 누락, items 비어 있음, 항목 필수값 누락, 시작 ≥ 종료, 길이 초과, 보낸 수업끼리 시간 겹침, 다른 학기 과목, enum 값 오류",
+            @ApiResponse(responseCode = "400", description = "연도·학기 누락, items 비어 있음 또는 50개 초과, 항목 필수값 누락, 시작 ≥ 종료, 길이 초과, 보낸 수업끼리 시간 겹침, 다른 학기 과목, enum 값 오류",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class),
                             examples = {
                                     @ExampleObject(name = "items 비어 있음", value = """

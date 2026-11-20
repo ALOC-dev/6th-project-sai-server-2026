@@ -225,6 +225,34 @@ class TimetableBulkTest {
     }
 
     @Test
+    void 수업은_한_번에_50개까지_등록할_수_있고_넘으면_400() throws Exception {
+        bulk(manyItems(51))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("한 번에 등록할 수 있는 수업은 50개까지입니다."));
+        assertThat(timetableRepository.count()).isZero();
+
+        bulk(manyItems(50))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.createdItems", hasSize(50)));
+    }
+
+    @Test
+    void 같은_과목_건물을_여러_수업에_연결할_수_있다() throws Exception {
+        Course course = saveCourse(TERM);
+
+        bulk("""
+                {%s, "items": [
+                  {"courseId": %d, "courseName": "자료구조", "dayOfWeek": "MON", "startTime": "09:00", "endTime": "10:15", "buildingId": %d},
+                  {"courseId": %d, "courseName": "자료구조", "dayOfWeek": "WED", "startTime": "09:00", "endTime": "10:15", "buildingId": %d}
+                ]}""".formatted(TERM_JSON, course.getCourseId(), engineering.getBuildingId(),
+                        course.getCourseId(), engineering.getBuildingId()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.createdItems[0].courseId").value(course.getCourseId()))
+                .andExpect(jsonPath("$.createdItems[1].courseId").value(course.getCourseId()))
+                .andExpect(jsonPath("$.createdItems[1].building.buildingName").value("공학관"));
+    }
+
+    @Test
     void 다른_학기_과목을_연결하면_400() throws Exception {
         Course course = saveCourse(new AcademicTerm(2026, Semester.FIRST));
 
@@ -292,6 +320,18 @@ class TimetableBulkTest {
         return """
                 {%s, "items": [{"courseName": "자료구조", "dayOfWeek": "%s", "startTime": "%s", "endTime": "%s"}]}"""
                 .formatted(TERM_JSON, day, start, end);
+    }
+
+    // 7일 × 하루 여러 칸으로 겹치지 않는 수업 count개를 만든다.
+    private static String manyItems(int count) {
+        List<String> items = new ArrayList<>();
+        String[] days = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"};
+        for (int i = 0; i < count; i++) {
+            LocalTime start = LocalTime.of(8, 0).plusMinutes(30L * (i / days.length));
+            items.add("{\"courseName\": \"수업%d\", \"dayOfWeek\": \"%s\", \"startTime\": \"%s\", \"endTime\": \"%s\"}"
+                    .formatted(i, days[i % days.length], start, start.plusMinutes(30)));
+        }
+        return "{%s, \"items\": [%s]}".formatted(TERM_JSON, String.join(",", items));
     }
 
     private static TimetableItemCreateRequest manualRequest(Weekday day, String start, String end) {

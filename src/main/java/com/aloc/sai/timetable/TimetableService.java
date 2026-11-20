@@ -26,13 +26,19 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
 public class TimetableService {
     private static final int COURSE_NAME_MAX_LENGTH = 50;
     private static final int ROOM_MAX_LENGTH = 50;
+    // 한 학기 시간표는 많아야 수십 개다. 잠금을 쥔 채 처리하므로 지나치게 큰 요청을 막는다.
+    private static final int BULK_MAX_ITEMS = 50;
     private static final Comparator<TimetableItem> ITEM_ORDER =
             Comparator.comparing(TimetableItem::getDayOfWeek).thenComparing(TimetableItem::getStartTime);
 
@@ -114,7 +120,15 @@ public class TimetableService {
         if (request.items() == null || request.items().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "등록할 수업을 1개 이상 보내 주세요.");
         }
+        if (request.items().size() > BULK_MAX_ITEMS) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "한 번에 등록할 수 있는 수업은 50개까지입니다.");
+        }
         AcademicTerm term = new AcademicTerm(request.academicYear(), request.semester());
+        // 과목·건물은 항목마다 조회하지 않고 잠그기 전에 한 번에 읽는다.
+        Map<Long, Course> courses = findAllByIds(request.items().stream()
+                .map(item -> item == null ? null : item.courseId()), courseRepository::findAllById, Course::getCourseId);
+        Map<Long, Building> buildings = findAllByIds(request.items().stream()
+                .map(item -> item == null ? null : item.buildingId()), buildingRepository::findAllById, Building::getBuildingId);
         User user = userService.getUserForUpdate(userId);
 
         Timetable timetable = findOrCreateTimetable(user, term);
@@ -124,7 +138,7 @@ public class TimetableService {
 
         List<TimetableItem> items = new ArrayList<>();
         for (TimetableItemBulkCreateRequest.BulkItem bulkItem : request.items()) {
-            TimetableItem item = toBulkItem(timetable, term, bulkItem);
+            TimetableItem item = toBulkItem(timetable, term, bulkItem, courses, buildings);
             if (items.stream().anyMatch(other -> overlaps(other, item))) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "보낸 수업끼리 같은 요일에 시간이 겹칩니다.");
             }
@@ -228,7 +242,9 @@ public class TimetableService {
     }
 
     // 일괄 등록의 항목 하나. 과목이 연결돼도 시간·강의실은 사용자가 보낸 값을 쓴다(인식 결과를 고쳤을 수 있다).
-    private TimetableItem toBulkItem(Timetable timetable, AcademicTerm term, TimetableItemBulkCreateRequest.BulkItem item) {
+    // courses·buildings는 요청에 나온 아이디로 미리 읽어 둔 것이다. 없으면 404다.
+    private TimetableItem toBulkItem(Timetable timetable, AcademicTerm term, TimetableItemBulkCreateRequest.BulkItem item,
+                                     Map<Long, Course> courses, Map<Long, Building> buildings) {
         if (item == null || item.courseName() == null || item.dayOfWeek() == null
                 || item.startTime() == null || item.endTime() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "수업마다 과목명·요일·시작·종료 시간을 모두 입력해 주세요.");
@@ -236,20 +252,35 @@ public class TimetableService {
         String courseName = normalizeCourseName(item.courseName());
         validateTime(item.startTime(), item.endTime());
         String room = item.room() == null ? null : normalizeRoom(item.room());
-        Building building = item.buildingId() == null ? null : findBuilding(item.buildingId());
-        Course course = item.courseId() == null ? null : findCourseInTerm(item.courseId(), term);
+        Building building = null;
+        if (item.buildingId() != null) {
+            building = buildings.get(item.buildingId());
+            if (building == null) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "건물을 찾을 수 없습니다.");
+            }
+        }
+        Course course = null;
+        if (item.courseId() != null) {
+            course = courses.get(item.courseId());
+            if (course == null) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "과목을 찾을 수 없습니다.");
+            }
+            // 다른 학기 과목을 연결하면 시간표 학기와 과목 학기가 어긋나므로 막는다.
+            if (!course.getAcademicYear().equals(term.academicYear()) || course.getSemester() != term.semester()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "등록하려는 학기의 과목이 아닙니다.");
+            }
+        }
         return new TimetableItem(timetable, course, courseName, item.dayOfWeek(),
                 item.startTime(), item.endTime(), building, room);
     }
 
-    // 다른 학기 과목을 연결하면 시간표 학기와 과목 학기가 어긋나므로 막는다.
-    private Course findCourseInTerm(Long courseId, AcademicTerm term) {
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "과목을 찾을 수 없습니다."));
-        if (!course.getAcademicYear().equals(term.academicYear()) || course.getSemester() != term.semester()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "등록하려는 학기의 과목이 아닙니다.");
+    private static <T> Map<Long, T> findAllByIds(Stream<Long> ids, Function<Set<Long>, List<T>> finder,
+                                                 Function<T, Long> idOf) {
+        Set<Long> distinct = ids.filter(Objects::nonNull).collect(Collectors.toSet());
+        if (distinct.isEmpty()) {
+            return Map.of();
         }
-        return course;
+        return finder.apply(distinct).stream().collect(Collectors.toMap(idOf, Function.identity()));
     }
 
     private Timetable findOrCreateTimetable(User user, AcademicTerm term) {
