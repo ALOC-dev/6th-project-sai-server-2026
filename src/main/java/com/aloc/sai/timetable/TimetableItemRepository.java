@@ -60,6 +60,8 @@ public interface TimetableItemRepository extends JpaRepository<TimetableItem, Lo
 
     boolean existsByTimetableTimetableIdAndCourseCourseId(Long timetableId, Long courseId);
 
+    boolean existsByTimetableTimetableId(Long timetableId);
+
     @Modifying
     @Query("delete from TimetableItem i where i.timetable.timetableId in "
             + "(select t.timetableId from Timetable t where t.user.userId = :userId)")

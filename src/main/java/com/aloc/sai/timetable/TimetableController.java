@@ -2,6 +2,7 @@ package com.aloc.sai.timetable;
 
 import com.aloc.sai.common.exception.ErrorResponse;
 import com.aloc.sai.security.LoginUserId;
+import com.aloc.sai.timetable.dto.TimetableItemBulkCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateResponse;
 import com.aloc.sai.timetable.dto.TimetableItemUpdateRequest;
@@ -154,6 +155,45 @@ public class TimetableController {
             @RequestBody TimetableItemCreateRequest request
     ) {
         return timetableService.addItem(userId, request);
+    }
+
+    @Operation(summary = "시간표 수업 일괄 등록",
+            description = "이미지 인식 결과를 사용자가 고친 뒤 한 번에 저장합니다. 해당 학기 시간표가 없으면 자동으로 만들고, "
+                    + "이미 수업이 1개 이상 있으면 409입니다(빈 시간표에만 가능). items의 courseId(선택)는 인식에서 매칭된 과목이며, "
+                    + "시간·강의실은 보낸 값을 그대로 씁니다. 보낸 수업끼리 같은 요일에 시간이 겹치면 400이고, 하나라도 잘못되면 아무것도 만들지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "등록 성공 (createdItems는 요일·시작 시각순)"),
+            @ApiResponse(responseCode = "400", description = "연도·학기 누락, items 비어 있음 또는 50개 초과, 항목 필수값 누락, 시작 ≥ 종료, 길이 초과, 보낸 수업끼리 시간 겹침, 다른 학기 과목, enum 값 오류",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "items 비어 있음", value = """
+                                            {"success": false, "message": "등록할 수업을 1개 이상 보내 주세요.", "code": 400}"""),
+                                    @ExampleObject(name = "항목 필수값 누락", value = """
+                                            {"success": false, "message": "수업마다 과목명·요일·시작·종료 시간을 모두 입력해 주세요.", "code": 400}"""),
+                                    @ExampleObject(name = "보낸 수업끼리 겹침", value = """
+                                            {"success": false, "message": "보낸 수업끼리 같은 요일에 시간이 겹칩니다.", "code": 400}"""),
+                                    @ExampleObject(name = "다른 학기 과목", value = """
+                                            {"success": false, "message": "등록하려는 학기의 과목이 아닙니다.", "code": 400}""")
+                            })),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = UNAUTHORIZED_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "과목 또는 건물 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "건물을 찾을 수 없습니다.", "code": 404}"""))),
+            @ApiResponse(responseCode = "409", description = "해당 학기 시간표에 이미 수업이 있음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "이미 등록된 수업이 있는 시간표에는 일괄 등록할 수 없습니다.", "code": 409}""")))
+    })
+    @PostMapping("/items/bulk")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TimetableItemCreateResponse addItems(
+            @LoginUserId Long userId,
+            @RequestBody TimetableItemBulkCreateRequest request
+    ) {
+        return timetableService.addItems(userId, request);
     }
 
     @Operation(summary = "시간표 수업 수정",
