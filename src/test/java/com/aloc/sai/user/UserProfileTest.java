@@ -64,17 +64,19 @@ class UserProfileTest {
                 .andExpect(jsonPath("$.statusMessage").value("도서관 3층"))
                 .andExpect(jsonPath("$.studentId").value("2023920001"))
                 .andExpect(jsonPath("$.department").value("컴퓨터과학부"))
+                .andExpect(jsonPath("$.profileCompleted").value(true))
                 .andExpect(jsonPath("$.marketingAgreed").value(true))
                 .andExpect(jsonPath("$.marketingAgreedAt").isNotEmpty())
                 .andExpect(jsonPath("$.createdAt").isNotEmpty());
     }
 
     @Test
-    void 초기_설정_전이면_학번과_학과가_null이다() throws Exception {
+    void 초기_설정_전이면_학번과_학과가_null이고_profileCompleted가_false다() throws Exception {
         getMe(login())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.studentId").isEmpty())
                 .andExpect(jsonPath("$.department").isEmpty())
+                .andExpect(jsonPath("$.profileCompleted").value(false))
                 .andExpect(jsonPath("$.marketingAgreed").value(false))
                 .andExpect(jsonPath("$.marketingAgreedAt").isEmpty());
     }
