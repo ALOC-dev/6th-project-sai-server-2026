@@ -11,6 +11,7 @@ public record UserProfileResponse(
         String statusMessage,
         String studentId,
         String department,
+        boolean profileCompleted,
         boolean marketingAgreed,
         LocalDateTime marketingAgreedAt,
         LocalDateTime createdAt
@@ -23,6 +24,7 @@ public record UserProfileResponse(
                 user.getStatusMessage(),
                 user.getStudentId(),
                 user.getDepartment(),
+                user.isProfileCompleted(),
                 user.isMarketingAgreed(),
                 user.getMarketingAgreedAt(),
                 user.getCreatedAt()
