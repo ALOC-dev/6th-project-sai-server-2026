@@ -2,6 +2,7 @@ package com.aloc.sai.notification;
 
 import com.aloc.sai.common.exception.ErrorResponse;
 import com.aloc.sai.notification.dto.NotificationListResponse;
+import com.aloc.sai.notification.dto.NotificationReadAllRequest;
 import com.aloc.sai.notification.dto.UnreadCountResponse;
 import com.aloc.sai.security.LoginUserId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,8 +13,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +28,31 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class NotificationController {
     private final NotificationQueryService notificationQueryService;
+    private final NotificationService notificationService;
+
+    @Operation(summary = "알림 전체 읽음 처리",
+            description = "알림 창 진입 시(또는 '모두 읽음' 버튼) 호출합니다. lastNotificationId에는 목록 응답의 첫 알림 id "
+                    + "(notifications[0].notificationId)를 보냅니다. 그 id 이하의 안 읽은 알림만 읽음 처리하므로, "
+                    + "목록을 받은 뒤 도착한 알림은 안 읽음으로 남습니다. 응답은 처리 후 남은 안 읽은 알림 수이며 배지 갱신에 씁니다. "
+                    + "목록이 비어 있으면 호출하지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "처리 성공 (읽음 처리할 알림이 없어도 200)"),
+            @ApiResponse(responseCode = "400", description = "lastNotificationId 누락",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "lastNotificationId는 필수입니다.", "code": 400}"""))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {"success": false, "message": "인증이 필요합니다.", "code": 401}""")))
+    })
+    @PatchMapping("/read-all")
+    public UnreadCountResponse readAll(
+            @LoginUserId Long userId,
+            @Valid @RequestBody NotificationReadAllRequest request
+    ) {
+        return notificationService.markAllRead(userId, request.lastNotificationId());
+    }
 
     @Operation(summary = "알림 목록 조회",
             description = "본인 알림을 최신순으로 조회합니다. 다음 페이지는 응답의 nextCursor를 cursor로 보내고, 마지막 페이지면 nextCursor는 null입니다. "
