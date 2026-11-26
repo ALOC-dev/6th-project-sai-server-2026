@@ -3,6 +3,7 @@ package com.aloc.sai.notification;
 import com.aloc.sai.common.exception.ApiException;
 import com.aloc.sai.friend.FriendService;
 import com.aloc.sai.notification.dto.PokeResponse;
+import com.aloc.sai.user.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,11 +21,13 @@ public class PokeService {
     static final int COOLDOWN_MINUTES = 10;
 
     private final FriendService friendService;
+    private final UserService userService;
     private final NotificationService notificationService;
     private final NotificationRepository notificationRepository;
 
-    // 쿨다운은 최근 POKE 알림 기록으로 판단한다. 거의 동시에 들어온 두 요청은 함께 통과할 수 있어,
-    // 연타는 FE가 요청 중 버튼을 막는 것으로 처리한다.
+    // 쿨다운은 최근 POKE 알림 기록으로 판단한다. 확인과 저장 사이에 같은 요청이 끼어들면 모두 통과하므로,
+    // 보내는 사람의 users 행을 잠가 같은 사람의 찌르기를 한 줄로 세운다(API를 직접 연속 호출해도 10분에 1번).
+    // 잠금은 이 트랜잭션이 끝날 때 풀리고, 같은 사람이 여러 친구를 동시에 찌르면 잠깐 차례로 처리된다.
     @Transactional
     public PokeResponse poke(Long userId, Long targetFriendId) {
         if (userId.equals(targetFriendId)) {
@@ -33,6 +36,7 @@ public class PokeService {
         if (!friendService.areFriends(userId, targetFriendId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "친구에게만 찌르기를 보낼 수 있습니다.");
         }
+        userService.getUserForUpdate(userId);
         LocalDateTime now = LocalDateTime.now();
         if (notificationRepository.existsByReceiverUserIdAndActorUserIdAndNotificationTypeAndCreatedAtAfter(
                 targetFriendId, userId, NotificationType.POKE, now.minusMinutes(COOLDOWN_MINUTES))) {

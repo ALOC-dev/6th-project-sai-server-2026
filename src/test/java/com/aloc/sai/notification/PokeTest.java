@@ -24,7 +24,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -119,6 +125,43 @@ class PokeTest {
 
         assertStatus(() -> pokeService.poke(me, friend), HttpStatus.TOO_MANY_REQUESTS);
         assertThat(notificationRepository.count()).isEqualTo(1);
+    }
+
+    // 정상 앱의 연타가 아니라 API를 직접 동시에 호출해도 쿨다운이 지켜지는지 확인한다.
+    @Test
+    void 같은_친구에게_동시에_5번_찔러도_알림은_1개만_생긴다() throws Exception {
+        int threads = 5;
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<HttpStatus>> futures = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    try {
+                        pokeService.poke(me, friend);
+                        return HttpStatus.CREATED;
+                    } catch (ApiException e) {
+                        return e.getStatus();
+                    }
+                }));
+            }
+            ready.await();
+            start.countDown();
+
+            List<HttpStatus> results = new ArrayList<>();
+            for (Future<HttpStatus> future : futures) {
+                results.add(future.get(10, TimeUnit.SECONDS));
+            }
+
+            assertThat(results).filteredOn(HttpStatus.CREATED::equals).hasSize(1);
+            assertThat(results).filteredOn(HttpStatus.TOO_MANY_REQUESTS::equals).hasSize(threads - 1);
+            assertThat(notificationRepository.count()).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
