@@ -1,6 +1,6 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
-import com.aloc.sai.timetable.UosApiClient.UosCourse;
+import com.aloc.sai.course.UosApiClient.UosCourse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

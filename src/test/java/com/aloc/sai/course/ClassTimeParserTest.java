@@ -1,6 +1,6 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
-import com.aloc.sai.timetable.ClassTimeParser.ClassTime;
+import com.aloc.sai.course.ClassTimeParser.ClassTime;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalTime;

@@ -1,4 +1,4 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;

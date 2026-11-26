@@ -1,8 +1,8 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
 import com.aloc.sai.common.exception.ErrorResponse;
-import com.aloc.sai.timetable.dto.BuildingListResponse;
-import com.aloc.sai.timetable.dto.CourseSearchResponse;
+import com.aloc.sai.course.dto.BuildingListResponse;
+import com.aloc.sai.course.dto.CourseSearchResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

@@ -1,6 +1,13 @@
 package com.aloc.sai.timetable;
 
 import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.course.AcademicTerm;
+import com.aloc.sai.course.Building;
+import com.aloc.sai.course.Course;
+import com.aloc.sai.course.CourseSchedule;
+import com.aloc.sai.course.CourseService;
+import com.aloc.sai.course.Semester;
+import com.aloc.sai.course.Weekday;
 import com.aloc.sai.timetable.dto.TimetableItemBulkCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateResponse;
@@ -11,6 +18,7 @@ import com.aloc.sai.timetable.dto.TimetableResponse;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserService;
 import com.aloc.sai.user.UserWithdrawEvent;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
@@ -45,8 +53,7 @@ public class TimetableService {
     private final UserService userService;
     private final TimetableRepository timetableRepository;
     private final TimetableItemRepository timetableItemRepository;
-    private final CourseRepository courseRepository;
-    private final BuildingRepository buildingRepository;
+    private final CourseService courseService;
 
     // today=true면 현재 학기에서 오늘 요일(KST) 수업만 시작 시각순으로 준다. 학기와 함께 보내면 어느 학기인지 모호해 400이다.
     @Transactional(readOnly = true)
@@ -126,9 +133,9 @@ public class TimetableService {
         AcademicTerm term = new AcademicTerm(request.academicYear(), request.semester());
         // 과목·건물은 항목마다 조회하지 않고 잠그기 전에 한 번에 읽는다.
         Map<Long, Course> courses = findAllByIds(request.items().stream()
-                .map(item -> item == null ? null : item.courseId()), courseRepository::findAllById, Course::getCourseId);
+                .map(item -> item == null ? null : item.courseId()), courseService::findCourses, Course::getCourseId);
         Map<Long, Building> buildings = findAllByIds(request.items().stream()
-                .map(item -> item == null ? null : item.buildingId()), buildingRepository::findAllById, Building::getBuildingId);
+                .map(item -> item == null ? null : item.buildingId()), courseService::findBuildings, Building::getBuildingId);
         User user = userService.getUserForUpdate(userId);
 
         Timetable timetable = findOrCreateTimetable(user, term);
@@ -197,7 +204,7 @@ public class TimetableService {
 
     // 학교 데이터의 모든 수업 시간을 항목으로 만든다. 학기도 과목 기준이다.
     private List<TimetableItem> addCourse(User user, Long courseId) {
-        Course course = courseRepository.findById(courseId)
+        Course course = courseService.findCourse(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "과목을 찾을 수 없습니다."));
         if (course.getSchedules().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "수업 시간이 정해지지 않은 과목입니다. 직접 입력으로 등록해 주세요.");
@@ -300,7 +307,7 @@ public class TimetableService {
     }
 
     private Building findBuilding(Long buildingId) {
-        return buildingRepository.findById(buildingId)
+        return courseService.findBuilding(buildingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "건물을 찾을 수 없습니다."));
     }
 

@@ -33,6 +33,9 @@ com.aloc.sai
 ├── auth/               # 로그인·토큰 (+ kakao/, dto/)
 ├── user/               # 회원
 ├── friend/             # 친구 (+ dto/)
+├── course/             # 학교 과목·건물 카탈로그와 학교 API 동기화, 학기·요일 공용 타입 (+ dto/)
+├── timetable/          # 내 시간표와 시간표 이미지 인식 (+ dto/)
+├── notification/       # 알림·푸시·찌르기 (+ dto/)
 ├── chat/               # 채팅 (+ dto/)
 └── appointment/        # 약속
 ```
@@ -45,7 +48,8 @@ com.aloc.sai
 | 로그인·토큰 | `auth` | 정지윤 |
 | 회원 | `user` | 정지윤 |
 | 친구 | `friend` | 정지윤 |
-| 시간표·공강 | `timetable`, `freetime` | 정지윤 |
+| 학교 과목·건물 | `course` | 정지윤 |
+| 시간표·공강 | `timetable` (공강 계산은 `friend`의 친구 목록) | 정지윤 |
 | 알림 | `notification` | 정지윤 |
 | 채팅 | `chat` | 배은주 |
 | 약속 | `appointment` | 배은주 |

@@ -10,7 +10,7 @@ import com.aloc.sai.friend.dto.FriendRequestListResponse;
 import com.aloc.sai.friend.dto.FriendRequestRespondRequest;
 import com.aloc.sai.friend.dto.FriendRequestRespondResponse;
 import com.aloc.sai.security.LoginUserId;
-import com.aloc.sai.timetable.Semester;
+import com.aloc.sai.course.Semester;
 import com.aloc.sai.timetable.dto.TimetableResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

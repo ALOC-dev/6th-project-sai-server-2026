@@ -4,8 +4,16 @@ import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.auth.kakao.KakaoClient;
 import com.aloc.sai.auth.kakao.KakaoUserInfo;
 import com.aloc.sai.common.exception.ApiException;
+import com.aloc.sai.course.AcademicTerm;
+import com.aloc.sai.course.Building;
+import com.aloc.sai.course.BuildingRepository;
+import com.aloc.sai.course.Course;
+import com.aloc.sai.course.CourseRepository;
+import com.aloc.sai.course.CourseSchedule;
+import com.aloc.sai.course.Weekday;
 import com.aloc.sai.timetable.dto.TimetableItemCreateRequest;
 import com.aloc.sai.user.UserRepository;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
