@@ -29,11 +29,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -220,6 +222,16 @@ public class FriendService {
     public boolean areFriends(Long userId, Long otherUserId) {
         return friendshipRepository.existsByUser1UserIdAndUser2UserId(
                 Math.min(userId, otherUserId), Math.max(userId, otherUserId));
+    }
+
+    // 알림 창이 FRIEND_REQUEST 알림의 처리 상태(대기·수락·거절)를 표시할 때 쓴다. 없는 ID는 결과에서 빠진다.
+    @Transactional(readOnly = true)
+    public Map<Long, FriendRequestStatus> getRequestStatuses(Collection<Long> friendRequestIds) {
+        if (friendRequestIds.isEmpty()) {
+            return Map.of();
+        }
+        return friendRequestRepository.findAllById(friendRequestIds).stream()
+                .collect(Collectors.toMap(FriendRequest::getFriendRequestId, FriendRequest::getRequestStatus));
     }
 
     // 탈퇴 트랜잭션 안에서 사용자 행을 지우기 전에 실행된다. DB 정리만 하고 예외를 삼키지 않는다.
