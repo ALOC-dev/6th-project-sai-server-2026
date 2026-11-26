@@ -1,5 +1,6 @@
 package com.aloc.sai.notification;
 
+import com.aloc.sai.notification.dto.UnreadCountResponse;
 import com.aloc.sai.user.UserService;
 import com.aloc.sai.user.UserWithdrawEvent;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,15 @@ public class NotificationService {
                 type,
                 referenceId));
         eventPublisher.publishEvent(NotificationCreatedEvent.from(notification));
+    }
+
+    // 알림 창 진입 시 호출. 목록에서 본 가장 최신 알림(lastNotificationId) 이하만 읽음 처리하고,
+    // 처리 후 남은 안 읽은 알림 수를 돌려준다(그 사이 도착한 알림은 남아 배지에 반영된다).
+    // 안 읽은 알림이 없거나 남의 알림 id를 보내도 바뀌는 행이 없을 뿐 실패하지 않는다.
+    @Transactional
+    public UnreadCountResponse markAllRead(Long userId, Long lastNotificationId) {
+        notificationRepository.markReadUpTo(userId, lastNotificationId);
+        return new UnreadCountResponse(notificationRepository.countByReceiverUserIdAndIsReadFalse(userId));
     }
 
     @EventListener
