@@ -33,6 +33,8 @@ jwt:
   refresh-expiration-ms: 1209600000  # 14일
 kakao:
   user-info-uri: https://kapi.kakao.com/v2/user/me
+expo:
+  push-uri: https://exp.host/--/api/v2/push/send
 uos:
   api-base-url: https://wise.uos.ac.kr
   api-key: ${UOS_API_KEY}

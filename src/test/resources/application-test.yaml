@@ -10,6 +10,9 @@ jwt:
   secret: dGVzdC1zZWNyZXQta2V5LWZvci1zYWktdGVzdHMtb25seS0zMmJ5dGVz
   access-expiration-ms: 3600000
   refresh-expiration-ms: 1209600000
+# 테스트에서 실수로 실제 Expo를 부르지 않도록 닫힌 포트로 둔다. 푸시 테스트는 ExpoPushClient를 목으로 바꾼다.
+expo:
+  push-uri: http://localhost:1/push/send
 uos:
   api-key: test-uos-key
   sync:
