@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
 public class NotificationController {
-    private final NotificationService notificationService;
+    private final NotificationQueryService notificationQueryService;
 
     @Operation(summary = "알림 목록 조회",
             description = "본인 알림을 최신순으로 조회합니다. 다음 페이지는 응답의 nextCursor를 cursor로 보내고, 마지막 페이지면 nextCursor는 null입니다. "
@@ -48,7 +48,7 @@ public class NotificationController {
             @Parameter(description = "페이지 크기 (기본 20, 최대 50)", example = "20") @RequestParam(required = false) Integer size,
             @Parameter(description = "안 읽은 알림만 조회") @RequestParam(defaultValue = "false") boolean unreadOnly
     ) {
-        return notificationService.getNotifications(userId, cursor, size, unreadOnly);
+        return notificationQueryService.getNotifications(userId, cursor, size, unreadOnly);
     }
 
     @Operation(summary = "안 읽은 알림 수 조회",
@@ -62,6 +62,6 @@ public class NotificationController {
     })
     @GetMapping("/unread-count")
     public UnreadCountResponse getUnreadCount(@LoginUserId Long userId) {
-        return notificationService.getUnreadCount(userId);
+        return notificationQueryService.getUnreadCount(userId);
     }
 }

@@ -1,27 +1,16 @@
 package com.aloc.sai.notification;
 
-import com.aloc.sai.common.exception.ApiException;
-import com.aloc.sai.friend.FriendRequestStatus;
-import com.aloc.sai.notification.dto.NotificationListResponse;
-import com.aloc.sai.notification.dto.UnreadCountResponse;
 import com.aloc.sai.user.UserService;
 import com.aloc.sai.user.UserWithdrawEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
-    private static final int DEFAULT_SIZE = 20;
-    private static final int MAX_SIZE = 50;
-
     private final UserService userService;
     private final NotificationRepository notificationRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -40,32 +29,6 @@ public class NotificationService {
                 type,
                 referenceId));
         eventPublisher.publishEvent(NotificationCreatedEvent.from(notification));
-    }
-
-    // 알림 창 목록. 최신순(id 내림차순) 커서 페이징이며, 조회만 하고 읽음 처리는 하지 않는다.
-    // size+1개를 읽어 다음 페이지가 있는지 판단한다.
-    @Transactional(readOnly = true)
-    public NotificationListResponse getNotifications(Long userId, Long cursor, Integer size, boolean unreadOnly) {
-        int limit = size == null ? DEFAULT_SIZE : size;
-        if (limit < 1 || limit > MAX_SIZE) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "size는 1 이상 50 이하여야 합니다.");
-        }
-
-        List<Object[]> rows = notificationRepository.findPage(
-                userId, cursor, unreadOnly, NotificationType.FRIEND_REQUEST, PageRequest.of(0, limit + 1));
-        boolean hasNext = rows.size() > limit;
-        List<NotificationListResponse.NotificationItem> items = rows.stream()
-                .limit(limit)
-                .map(row -> NotificationListResponse.NotificationItem.from(
-                        (Notification) row[0], (FriendRequestStatus) row[1]))
-                .toList();
-        Long nextCursor = hasNext ? items.getLast().notificationId() : null;
-        return new NotificationListResponse(items, nextCursor);
-    }
-
-    @Transactional(readOnly = true)
-    public UnreadCountResponse getUnreadCount(Long userId) {
-        return new UnreadCountResponse(notificationRepository.countByReceiverUserIdAndIsReadFalse(userId));
     }
 
     @EventListener

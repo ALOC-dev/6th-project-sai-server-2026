@@ -10,23 +10,19 @@ import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    // 알림 창 목록. FRIEND_REQUEST 알림은 요청의 처리 상태를 함께 가져오고, 다른 타입은 null이다.
-    // 각 행은 [Notification, FriendRequestStatus]. 요청 행은 수락·거절 후에도 남아 있어 조인이 깨지지 않는다.
+    // 알림 창 목록(최신순). 문구를 만들 actor를 함께 가져온다.
     @Query("""
-            select n, fr.requestStatus from Notification n
+            select n from Notification n
             left join fetch n.actor
-            left join FriendRequest fr
-                   on n.notificationType = :friendRequestType and fr.friendRequestId = n.referenceId
             where n.receiver.userId = :receiverId
               and (:cursor is null or n.notificationId < :cursor)
               and (:unreadOnly = false or n.isRead = false)
             order by n.notificationId desc
             """)
-    List<Object[]> findPage(@Param("receiverId") Long receiverId,
-                            @Param("cursor") Long cursor,
-                            @Param("unreadOnly") boolean unreadOnly,
-                            @Param("friendRequestType") NotificationType friendRequestType,
-                            Pageable pageable);
+    List<Notification> findPage(@Param("receiverId") Long receiverId,
+                                @Param("cursor") Long cursor,
+                                @Param("unreadOnly") boolean unreadOnly,
+                                Pageable pageable);
 
     long countByReceiverUserIdAndIsReadFalse(Long receiverId);
 
