@@ -27,6 +27,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     long countByReceiverUserIdAndIsReadFalse(Long receiverId);
 
+    // 찌르기 쿨다운 확인: 같은 사람이 같은 친구에게 since 이후 보낸 알림이 있는지
+    boolean existsByReceiverUserIdAndActorUserIdAndNotificationTypeAndCreatedAtAfter(
+            Long receiverId, Long actorId, NotificationType notificationType, LocalDateTime since);
+
     // 본인 알림 중 lastNotificationId 이하의 안 읽은 알림을 읽음 처리한다.
     @Modifying
     @Query("""

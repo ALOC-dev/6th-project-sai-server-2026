@@ -21,7 +21,8 @@ public class NotificationService {
     // 호출한 쪽이 롤백되면 기록도 푸시도 남지 않고, 푸시가 실패해도 호출한 쪽은 실패하지 않는다.
     // actorId는 시스템 알림(발생시킨 사람 없음)이면 null로 보낸다.
     @Transactional
-    public void send(Long receiverId, Long actorId, NotificationType type, Long referenceId) {
+    // 저장한 알림의 id를 돌려준다(찌르기 응답처럼 호출한 쪽이 알림 id가 필요할 때 쓴다).
+    public Long send(Long receiverId, Long actorId, NotificationType type, Long referenceId) {
         validateReference(type, referenceId);
 
         Notification notification = notificationRepository.save(new Notification(
@@ -30,6 +31,7 @@ public class NotificationService {
                 type,
                 referenceId));
         eventPublisher.publishEvent(NotificationCreatedEvent.from(notification));
+        return notification.getNotificationId();
     }
 
     // 알림 창 진입 시 호출. 목록에서 본 가장 최신 알림(lastNotificationId) 이하만 읽음 처리하고,
