@@ -1,7 +1,7 @@
 package com.aloc.sai.timetable.dto;
 
-import com.aloc.sai.timetable.AcademicTerm;
-import com.aloc.sai.timetable.Semester;
+import com.aloc.sai.course.AcademicTerm;
+import com.aloc.sai.course.Semester;
 import com.aloc.sai.timetable.Timetable;
 
 import java.time.LocalDateTime;

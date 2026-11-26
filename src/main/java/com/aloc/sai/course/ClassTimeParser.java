@@ -1,4 +1,4 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
 import java.time.LocalTime;
 import java.util.ArrayList;

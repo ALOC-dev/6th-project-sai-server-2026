@@ -1,6 +1,6 @@
-package com.aloc.sai.timetable.dto;
+package com.aloc.sai.course.dto;
 
-import com.aloc.sai.timetable.Building;
+import com.aloc.sai.course.Building;
 
 import java.util.List;
 

@@ -1,5 +1,9 @@
 package com.aloc.sai.timetable;
 
+import com.aloc.sai.course.Building;
+import com.aloc.sai.course.Course;
+import com.aloc.sai.course.Weekday;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

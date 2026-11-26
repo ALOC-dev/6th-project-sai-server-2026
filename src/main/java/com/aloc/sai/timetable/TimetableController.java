@@ -1,6 +1,7 @@
 package com.aloc.sai.timetable;
 
 import com.aloc.sai.common.exception.ErrorResponse;
+import com.aloc.sai.course.Semester;
 import com.aloc.sai.security.LoginUserId;
 import com.aloc.sai.timetable.dto.TimetableItemBulkCreateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemCreateRequest;
@@ -9,6 +10,7 @@ import com.aloc.sai.timetable.dto.TimetableItemUpdateRequest;
 import com.aloc.sai.timetable.dto.TimetableItemUpdateResponse;
 import com.aloc.sai.timetable.dto.TimetableRecognitionResponse;
 import com.aloc.sai.timetable.dto.TimetableResponse;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

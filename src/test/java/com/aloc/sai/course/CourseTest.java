@@ -1,4 +1,4 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
 import com.aloc.sai.auth.RefreshTokenRepository;
 import com.aloc.sai.auth.kakao.KakaoClient;

@@ -1,5 +1,7 @@
 package com.aloc.sai.timetable;
 
+import com.aloc.sai.course.Weekday;
+
 import java.time.LocalTime;
 
 // 시간표 이미지에서 읽어 낸 수업 하나. 학교 데이터와 맞추기 전의 값이다.

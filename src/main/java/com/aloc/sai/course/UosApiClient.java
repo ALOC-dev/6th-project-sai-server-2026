@@ -1,4 +1,4 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
 import com.aloc.sai.common.exception.ApiException;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

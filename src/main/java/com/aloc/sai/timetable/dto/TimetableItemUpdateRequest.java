@@ -1,6 +1,6 @@
 package com.aloc.sai.timetable.dto;
 
-import com.aloc.sai.timetable.Weekday;
+import com.aloc.sai.course.Weekday;
 
 import java.time.LocalTime;
 

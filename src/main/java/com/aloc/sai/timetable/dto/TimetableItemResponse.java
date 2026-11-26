@@ -1,8 +1,9 @@
 package com.aloc.sai.timetable.dto;
 
-import com.aloc.sai.timetable.Course;
+import com.aloc.sai.course.Course;
+import com.aloc.sai.course.Weekday;
+import com.aloc.sai.course.dto.BuildingSummary;
 import com.aloc.sai.timetable.TimetableItem;
-import com.aloc.sai.timetable.Weekday;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalTime;

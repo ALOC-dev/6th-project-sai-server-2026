@@ -1,4 +1,4 @@
-package com.aloc.sai.timetable;
+package com.aloc.sai.course;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

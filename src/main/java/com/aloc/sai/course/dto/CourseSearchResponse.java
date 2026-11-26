@@ -1,8 +1,8 @@
-package com.aloc.sai.timetable.dto;
+package com.aloc.sai.course.dto;
 
-import com.aloc.sai.timetable.Course;
-import com.aloc.sai.timetable.CourseSchedule;
-import com.aloc.sai.timetable.Weekday;
+import com.aloc.sai.course.Course;
+import com.aloc.sai.course.CourseSchedule;
+import com.aloc.sai.course.Weekday;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalTime;
