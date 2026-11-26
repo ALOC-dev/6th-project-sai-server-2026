@@ -1,6 +1,11 @@
 package com.aloc.sai.notification;
 
 import com.aloc.sai.auth.RefreshTokenRepository;
+import com.aloc.sai.friend.FriendRequestRepository;
+import com.aloc.sai.friend.FriendService;
+import com.aloc.sai.friend.FriendshipRepository;
+import com.aloc.sai.friend.dto.FriendRequestAction;
+import com.aloc.sai.security.JwtTokenProvider;
 import com.aloc.sai.user.User;
 import com.aloc.sai.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -9,13 +14,19 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
@@ -24,6 +35,7 @@ import static org.mockito.Mockito.verify;
 
 // 알림 커밋 후 받는 사람의 모든 기기로 Expo 푸시를 보낸다(동기 단순 버전)
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 class NotificationPushSenderTest {
     private static final String TOKEN_A = "ExponentPushToken[phone-a]";
@@ -47,6 +59,24 @@ class NotificationPushSenderTest {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Autowired
+    private NotificationPushSender pushSender;
+
+    @Autowired
+    private FriendService friendService;
+
+    @Autowired
+    private FriendRequestRepository friendRequestRepository;
+
+    @Autowired
+    private FriendshipRepository friendshipRepository;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
     @MockitoBean
     private ExpoPushClient expoPushClient;
 
@@ -67,6 +97,8 @@ class NotificationPushSenderTest {
     @AfterEach
     void cleanUp() {
         notificationRepository.deleteAll();
+        friendRequestRepository.deleteAll();
+        friendshipRepository.deleteAll();
         userDeviceRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
@@ -124,6 +156,34 @@ class NotificationPushSenderTest {
         given(expoPushClient.send(anyList())).willThrow(new ResourceAccessException("timeout"));
 
         notificationService.send(receiver, actor, NotificationType.POKE, null);
+
+        verify(expoPushClient).send(anyList());
+        assertThat(notificationRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 보낸_사람을_찾지_못해도_예외를_밖으로_던지지_않는다() {
+        userDeviceService.register(receiver, TOKEN_A, DevicePlatform.IOS);
+        // 커밋 후 발송 전에 보낸 사람이 탈퇴한 경우: 닉네임 조회(getUser)가 404를 던진다.
+        NotificationCreatedEvent event = new NotificationCreatedEvent(1L, receiver, 999_999L, NotificationType.POKE, null);
+
+        assertThatCode(() -> pushSender.onNotificationCreated(event)).doesNotThrowAnyException();
+        verify(expoPushClient, never()).send(any());
+    }
+
+    @Test
+    void 찌르기_API는_푸시가_실패해도_201이고_알림은_남는다() throws Exception {
+        Long requestId = friendService.sendRequest(actor, receiver).friendRequestId();
+        friendService.respond(receiver, requestId, FriendRequestAction.ACCEPT);
+        notificationRepository.deleteAll();
+        userDeviceService.register(receiver, TOKEN_A, DevicePlatform.IOS);
+        given(expoPushClient.send(anyList())).willThrow(new ResourceAccessException("Expo timeout"));
+
+        mockMvc.perform(post("/api/v1/pokes")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createToken(actor))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetFriendId\": " + receiver + "}"))
+                .andExpect(status().isCreated());
 
         verify(expoPushClient).send(anyList());
         assertThat(notificationRepository.count()).isEqualTo(1);
