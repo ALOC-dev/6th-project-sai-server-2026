@@ -351,6 +351,29 @@ class TimetableRecognitionTest {
                 .andExpect(jsonPath("$.recognizedItems[0].courseName").value("자료구조"));
     }
 
+    @Test
+    void 강의실이_같아도_이름이_더_먼_과목보다_가까운_과목으로_보정한다() throws Exception {
+        // 공학연구인런십과 인턴십은 거리 1, 인터뷰는 거리 5(허용 5)라 둘 다 후보지만 강의실은 인터뷰와 같다.
+        Course internship = saveCourse(TERM, "01234", "01", "공학연구인턴십", Weekday.MON, "09:00", "10:15", engineering, "202호");
+        saveCourse(TERM, "06666", "01", "공학연구인터뷰", Weekday.MON, "09:00", "10:15", engineering, "101호");
+        recognizes(recognized("공학연구인런십", Weekday.MON, "09:00", "10:15", null, "101호", 0.6));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(internship.getCourseId()));
+    }
+
+    @Test
+    void 이름이_같은_과목이_있으면_시간이_달라도_비슷한_이름의_다른_과목에_붙이지_않는다() throws Exception {
+        // 자료구조를 화요일로 잘못 읽었고, 화요일 같은 시간에는 이름이 비슷한 자료구조2(거리 1)가 있다.
+        saveCourse(TERM, "01234", "01", "자료구조", Weekday.MON, "09:00", "10:15", engineering, "326호");
+        saveCourse(TERM, "01235", "01", "자료구조2", Weekday.TUE, "09:00", "10:15", engineering, "327호");
+        recognizes(recognized("자료구조", Weekday.TUE, "09:00", "10:15", null, null, 0.9));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("자료구조"));
+    }
+
     private void recognizes(RecognizedClass... classes) {
         given(recognizer.recognize(any(), anyString())).willReturn(List.of(classes));
     }

@@ -87,12 +87,15 @@ public class TimetableRecognitionService {
         Building buildingByName = buildingName == null ? null
                 : single(buildingsByName.getOrDefault(matchKey(buildingName), List.of()));
 
-        List<CourseSchedule> matches = coursesByName.getOrDefault(matchKey(recognized.courseName()), List.of()).stream()
+        List<Course> sameNameCourses = coursesByName.getOrDefault(matchKey(recognized.courseName()), List.of());
+        List<CourseSchedule> matches = sameNameCourses.stream()
                 .flatMap(course -> course.getSchedules().stream())
                 .filter(schedule -> overlaps(schedule, recognized))
                 .toList();
-        // 이름이 같은 과목이 없을 때만 OCR 오타를 보정한다. 이름이 같은 분반이 여럿이면 그대로 매칭하지 않는다.
-        if (matches.isEmpty()) {
+        // 학기에 이름이 같은 과목이 하나도 없을 때만 OCR 오타로 보고 보정한다.
+        // 이름이 같은 과목이 있는데 시간이 안 겹치면 과목명이 아니라 시간을 잘못 읽은 것이라, 비슷한 이름의 다른 과목에 붙이지 않는다.
+        // 이름이 같은 분반이 여럿이면 그대로 매칭하지 않는다.
+        if (sameNameCourses.isEmpty()) {
             matches = closestByName(recognized, courses);
         }
         boolean oneCourse = !matches.isEmpty()
@@ -117,8 +120,8 @@ public class TimetableRecognitionService {
     }
 
     // OCR 오타 보정: 같은 요일에 시간이 겹치는 수업 중 과목명의 자모 편집 거리가 허용 범위 안인 후보를 찾는다.
-    // 읽은 강의실과 같은 강의실의 후보가 있으면 그 후보들 중에서 고르고, 가장 가까운 후보들의 수업 시간을 돌려준다.
-    // 가장 가까운 후보가 서로 다른 과목이면 호출한 쪽(oneCourse)에서 매칭하지 않는다.
+    // 가장 가까운 후보들의 수업 시간을 돌려준다. 강의실도 OCR로 읽은 값이라 틀릴 수 있어, 이름 거리가 같은 후보끼리만
+    // 읽은 강의실과 같은 후보를 고르는 데 쓴다. 그래도 서로 다른 과목이 남으면 호출한 쪽(oneCourse)에서 매칭하지 않는다.
     // 허용 범위를 넘으면(개인 일정 "근로" 등) 빈 목록이라 직접 입력 항목으로 남는다.
     private static List<CourseSchedule> closestByName(RecognizedClass recognized, List<Course> courses) {
         int[] target = JamoDistance.decompose(matchKey(recognized.courseName()));
@@ -137,16 +140,13 @@ public class TimetableRecognitionService {
                 })
                 .toList();
 
+        int best = candidates.stream().mapToInt(NameCandidate::distance).min().orElse(Integer.MAX_VALUE);
+        List<NameCandidate> closest = candidates.stream().filter(candidate -> candidate.distance() == best).toList();
+
         String room = roomKey(recognized.room());
         List<NameCandidate> sameRoom = room == null ? List.of()
-                : candidates.stream().filter(candidate -> room.equals(roomKey(candidate.schedule().getRoom()))).toList();
-        List<NameCandidate> pool = sameRoom.isEmpty() ? candidates : sameRoom;
-
-        int best = pool.stream().mapToInt(NameCandidate::distance).min().orElse(Integer.MAX_VALUE);
-        return pool.stream()
-                .filter(candidate -> candidate.distance() == best)
-                .map(NameCandidate::schedule)
-                .toList();
+                : closest.stream().filter(candidate -> room.equals(roomKey(candidate.schedule().getRoom()))).toList();
+        return (sameRoom.isEmpty() ? closest : sameRoom).stream().map(NameCandidate::schedule).toList();
     }
 
     private record NameCandidate(CourseSchedule schedule, int distance) {
