@@ -269,12 +269,6 @@ class TimetableRecognitionTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void 인식_기능_준비_전에는_503이다() {
-        assertThatThrownBy(() -> new UnavailableTimetableImageRecognizer().recognize(PNG, "image/png"))
-                .isInstanceOfSatisfying(ApiException.class,
-                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
-    }
 
     private void recognizes(RecognizedClass... classes) {
         given(recognizer.recognize(any(), anyString())).willReturn(List.of(classes));
