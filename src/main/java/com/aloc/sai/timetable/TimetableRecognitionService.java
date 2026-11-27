@@ -32,6 +32,13 @@ public class TimetableRecognitionService {
     // 파일 용량(10MB)은 multipart 설정에서 막는다(413).
     private static final Set<ProfileImageType> ALLOWED_TYPES =
             Set.of(ProfileImageType.JPEG, ProfileImageType.PNG, ProfileImageType.HEIC, ProfileImageType.HEIF);
+    // 과목명 자모 편집 거리 허용 비율(긴 쪽 자모 수 기준). 머신러널→머신러닝(자모 10개, 거리 2)은 허용하고
+    // 근로처럼 짧은 개인 일정이 엉뚱한 과목에 붙지 않게 한다.
+    private static final int TYPO_PERCENT = 25;
+    // 3글자 과목명(자모 6개 이상)은 25%면 1밖에 허용되지 않아 유늬스→유닉스(거리 2)를 놓친다. 읽은 이름이 자모 6개 이상이면
+    // 최소 2까지 허용한다. 읽은 이름 기준이라 근로(자모 5개)처럼 짧은 개인 일정은 계속 엄격하게 본다.
+    private static final int SHORT_NAME_JAMO = 6;
+    private static final int SHORT_NAME_MAX_DISTANCE = 2;
 
     private final TimetableImageRecognizer recognizer;
     private final CourseService courseService;
@@ -51,6 +58,7 @@ public class TimetableRecognitionService {
     // 이미지에서 읽은 수업을 그 학기 학교 과목·건물과 맞춘다.
     // 과목: 이름(공백·대소문자 무시)이 같고 같은 요일에 시간이 겹치는 수업 시간이 있는 과목이 정확히 하나면 매칭하고,
     //       시간·강의실·건물은 학교 데이터 값으로 보정한다. 같은 이름의 분반이 여럿 남으면 잘못 연결하지 않도록 매칭하지 않는다.
+    //       이름이 같은 과목이 없으면 OCR 오타로 보고 자모 편집 거리가 가장 가까운 과목으로 보정한다(closestByName).
     // 건물: 과목으로 정해지지 않으면 읽은 건물명(공백 무시)과 이름이 같은 건물이 정확히 하나일 때 매칭한다.
     //       건물이 정해지면 건물명도 그 건물의 이름으로 줘서 ID와 이름이 서로 다른 건물을 가리키지 않게 한다.
     // 과목명·요일·시간이 빠졌거나 시작 ≥ 종료인 수업은 등록할 수 없으므로 버린다.
@@ -60,30 +68,36 @@ public class TimetableRecognitionService {
         if (valid.isEmpty()) {
             return List.of();
         }
-        Map<String, List<Course>> coursesByName = courseService.getCoursesWithSchedules(term).stream()
+        List<Course> courses = courseService.getCoursesWithSchedules(term);
+        Map<String, List<Course>> coursesByName = courses.stream()
                 .collect(Collectors.groupingBy(course -> matchKey(course.getCourseName())));
         Map<String, List<Building>> buildingsByName = courseService.getAllBuildings().stream()
                 .collect(Collectors.groupingBy(building -> matchKey(building.getBuildingName())));
 
         return valid.stream()
-                .map(recognized -> toRecognizedItem(recognized, coursesByName, buildingsByName))
+                .map(recognized -> toRecognizedItem(recognized, courses, coursesByName, buildingsByName))
                 .sorted(Comparator.comparing(TimetableRecognitionResponse.RecognizedItem::dayOfWeek)
                         .thenComparing(TimetableRecognitionResponse.RecognizedItem::startTime))
                 .toList();
     }
 
-    private static TimetableRecognitionResponse.RecognizedItem toRecognizedItem(
-            RecognizedClass recognized, Map<String, List<Course>> coursesByName, Map<String, List<Building>> buildingsByName) {
+    private static TimetableRecognitionResponse.RecognizedItem toRecognizedItem(RecognizedClass recognized, List<Course> courses,
+            Map<String, List<Course>> coursesByName, Map<String, List<Building>> buildingsByName) {
         String buildingName = blankToNull(recognized.buildingName());
         Building buildingByName = buildingName == null ? null
                 : single(buildingsByName.getOrDefault(matchKey(buildingName), List.of()));
 
-        List<CourseSchedule> matches = coursesByName.getOrDefault(matchKey(recognized.courseName()), List.of()).stream()
+        List<Course> sameNameCourses = coursesByName.getOrDefault(matchKey(recognized.courseName()), List.of());
+        List<CourseSchedule> matches = sameNameCourses.stream()
                 .flatMap(course -> course.getSchedules().stream())
-                .filter(schedule -> schedule.getDayOfWeek() == recognized.dayOfWeek()
-                        && schedule.getStartTime().isBefore(recognized.endTime())
-                        && recognized.startTime().isBefore(schedule.getEndTime()))
+                .filter(schedule -> overlaps(schedule, recognized))
                 .toList();
+        // 학기에 이름이 같은 과목이 하나도 없을 때만 OCR 오타로 보고 보정한다.
+        // 이름이 같은 과목이 있는데 시간이 안 겹치면 과목명이 아니라 시간을 잘못 읽은 것이라, 비슷한 이름의 다른 과목에 붙이지 않는다.
+        // 이름이 같은 분반이 여럿이면 그대로 매칭하지 않는다.
+        if (sameNameCourses.isEmpty()) {
+            matches = closestByName(recognized, courses);
+        }
         boolean oneCourse = !matches.isEmpty()
                 && matches.stream().map(schedule -> schedule.getCourse().getCourseId()).distinct().count() == 1;
 
@@ -103,6 +117,49 @@ public class TimetableRecognitionService {
                 building == null ? buildingName : building.getBuildingName(),
                 schedule.getRoom() != null ? schedule.getRoom() : blankToNull(recognized.room()),
                 recognized.confidence());
+    }
+
+    // OCR 오타 보정: 같은 요일에 시간이 겹치는 수업 중 과목명의 자모 편집 거리가 허용 범위 안인 후보를 찾는다.
+    // 가장 가까운 후보들의 수업 시간을 돌려준다. 강의실도 OCR로 읽은 값이라 틀릴 수 있어, 이름 거리가 같은 후보끼리만
+    // 읽은 강의실과 같은 후보를 고르는 데 쓴다. 그래도 서로 다른 과목이 남으면 호출한 쪽(oneCourse)에서 매칭하지 않는다.
+    // 허용 범위를 넘으면(개인 일정 "근로" 등) 빈 목록이라 직접 입력 항목으로 남는다.
+    private static List<CourseSchedule> closestByName(RecognizedClass recognized, List<Course> courses) {
+        int[] target = JamoDistance.decompose(matchKey(recognized.courseName()));
+        List<NameCandidate> candidates = courses.stream()
+                .flatMap(course -> {
+                    int[] name = JamoDistance.decompose(matchKey(course.getCourseName()));
+                    int maxDistance = Math.max(Math.max(target.length, name.length) * TYPO_PERCENT / 100,
+                            target.length >= SHORT_NAME_JAMO ? SHORT_NAME_MAX_DISTANCE : 0);
+                    int distance = JamoDistance.distance(target, name);
+                    if (distance > maxDistance) {
+                        return java.util.stream.Stream.empty();
+                    }
+                    return course.getSchedules().stream()
+                            .filter(schedule -> overlaps(schedule, recognized))
+                            .map(schedule -> new NameCandidate(schedule, distance));
+                })
+                .toList();
+
+        int best = candidates.stream().mapToInt(NameCandidate::distance).min().orElse(Integer.MAX_VALUE);
+        List<NameCandidate> closest = candidates.stream().filter(candidate -> candidate.distance() == best).toList();
+
+        String room = roomKey(recognized.room());
+        List<NameCandidate> sameRoom = room == null ? List.of()
+                : closest.stream().filter(candidate -> room.equals(roomKey(candidate.schedule().getRoom()))).toList();
+        return (sameRoom.isEmpty() ? closest : sameRoom).stream().map(NameCandidate::schedule).toList();
+    }
+
+    private record NameCandidate(CourseSchedule schedule, int distance) {
+    }
+
+    private static boolean overlaps(CourseSchedule schedule, RecognizedClass recognized) {
+        return schedule.getDayOfWeek() == recognized.dayOfWeek()
+                && schedule.getStartTime().isBefore(recognized.endTime())
+                && recognized.startTime().isBefore(schedule.getEndTime());
+    }
+
+    private static String roomKey(String room) {
+        return room == null || room.isBlank() ? null : matchKey(room);
     }
 
     private static boolean isUsable(RecognizedClass recognized) {

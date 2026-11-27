@@ -269,6 +269,110 @@ class TimetableRecognitionTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void 과목명_OCR_오타는_자모가_가까운_같은_시간대_과목으로_보정한다() throws Exception {
+        Course internship = saveCourse(TERM, "01234", "01", "공학연구인턴십", Weekday.MON, "09:00", "10:15", engineering, "326호");
+        Course ml = saveCourse(TERM, "05678", "01", "머신러닝", Weekday.TUE, "13:00", "14:15", science, "101호");
+        recognizes(recognized("공학연구인런십", Weekday.MON, "09:00", "10:15", null, null, 0.7),
+                recognized("머신러널", Weekday.TUE, "13:00", "14:15", null, null, 0.6));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(internship.getCourseId()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("공학연구인턴십"))
+                .andExpect(jsonPath("$.recognizedItems[1].courseId").value(ml.getCourseId()))
+                .andExpect(jsonPath("$.recognizedItems[1].courseName").value("머신러닝"))
+                .andExpect(jsonPath("$.recognizedItems[1].room").value("101호"));
+    }
+
+    @Test
+    void 세_글자_과목명은_자모_두_개까지_틀려도_보정한다() throws Exception {
+        Course unix = saveCourse(TERM, "03333", "01", "유닉스", Weekday.WED, "10:30", "11:45", engineering, "326호");
+        Course system = saveCourse(TERM, "04444", "01", "시스템", Weekday.THU, "15:00", "16:15", science, "101호");
+        recognizes(recognized("유늬스", Weekday.WED, "10:30", "11:45", null, null, 0.6),
+                recognized("시스컴", Weekday.THU, "15:00", "16:15", null, null, 0.6));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(unix.getCourseId()))
+                .andExpect(jsonPath("$.recognizedItems[1].courseId").value(system.getCourseId()));
+    }
+
+    @Test
+    void 두_글자_개인_일정은_자모_두_개_차이여도_매칭하지_않는다() throws Exception {
+        // 근로(자모 5개)는 최소 2 허용 대상이 아니다. 근무와는 거리 2(ㄹ→ㅁ, ㅗ→ㅜ)
+        saveCourse(TERM, "08888", "01", "근무", Weekday.TUE, "13:00", "14:15", science, "101호");
+        recognizes(recognized("근로", Weekday.TUE, "13:00", "17:00", null, null, 0.8));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("근로"));
+    }
+
+    @Test
+    void 오타_보정은_같은_요일에_시간이_겹치는_과목만_후보로_본다() throws Exception {
+        saveCourse(TERM, "05678", "01", "머신러닝", Weekday.MON, "13:00", "14:15", science, "101호");
+        recognizes(recognized("머신러널", Weekday.TUE, "13:00", "14:15", null, null, 0.6));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("머신러널"));
+    }
+
+    @Test
+    void 개인_일정은_이름이_조금_비슷한_과목이_있어도_매칭하지_않는다() throws Exception {
+        // 근로(자모 5개)는 1까지만 허용, 근대사와는 거리 4
+        saveCourse(TERM, "07777", "01", "근대사", Weekday.TUE, "13:00", "14:15", science, "101호");
+        recognizes(recognized("근로", Weekday.TUE, "13:00", "17:00", null, null, 0.8));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("근로"))
+                .andExpect(jsonPath("$.recognizedItems[0].endTime").value("17:00"));
+    }
+
+    @Test
+    void 가장_가까운_과목이_둘이면_잘못_연결하지_않도록_매칭하지_않는다() throws Exception {
+        saveCourse(TERM, "01234", "01", "자료구조", Weekday.MON, "09:00", "10:15", engineering, "326호");
+        saveCourse(TERM, "09999", "01", "자료구도", Weekday.MON, "09:00", "10:15", engineering, "327호");
+        recognizes(recognized("자료구소", Weekday.MON, "09:00", "10:15", null, null, 0.6));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("자료구소"));
+    }
+
+    @Test
+    void 가장_가까운_과목이_둘이어도_강의실이_같은_과목이_있으면_그_과목으로_보정한다() throws Exception {
+        Course course = saveCourse(TERM, "01234", "01", "자료구조", Weekday.MON, "09:00", "10:15", engineering, "326호");
+        saveCourse(TERM, "09999", "01", "자료구도", Weekday.MON, "09:00", "10:15", engineering, "327호");
+        recognizes(recognized("자료구소", Weekday.MON, "09:00", "10:15", null, "326 호", 0.6));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(course.getCourseId()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("자료구조"));
+    }
+
+    @Test
+    void 강의실이_같아도_이름이_더_먼_과목보다_가까운_과목으로_보정한다() throws Exception {
+        // 공학연구인런십과 인턴십은 거리 1, 인터뷰는 거리 5(허용 5)라 둘 다 후보지만 강의실은 인터뷰와 같다.
+        Course internship = saveCourse(TERM, "01234", "01", "공학연구인턴십", Weekday.MON, "09:00", "10:15", engineering, "202호");
+        saveCourse(TERM, "06666", "01", "공학연구인터뷰", Weekday.MON, "09:00", "10:15", engineering, "101호");
+        recognizes(recognized("공학연구인런십", Weekday.MON, "09:00", "10:15", null, "101호", 0.6));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(internship.getCourseId()));
+    }
+
+    @Test
+    void 이름이_같은_과목이_있으면_시간이_달라도_비슷한_이름의_다른_과목에_붙이지_않는다() throws Exception {
+        // 자료구조를 화요일로 잘못 읽었고, 화요일 같은 시간에는 이름이 비슷한 자료구조2(거리 1)가 있다.
+        saveCourse(TERM, "01234", "01", "자료구조", Weekday.MON, "09:00", "10:15", engineering, "326호");
+        saveCourse(TERM, "01235", "01", "자료구조2", Weekday.TUE, "09:00", "10:15", engineering, "327호");
+        recognizes(recognized("자료구조", Weekday.TUE, "09:00", "10:15", null, null, 0.9));
+
+        recognize(TERM_QUERY)
+                .andExpect(jsonPath("$.recognizedItems[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.recognizedItems[0].courseName").value("자료구조"));
+    }
 
     private void recognizes(RecognizedClass... classes) {
         given(recognizer.recognize(any(), anyString())).willReturn(List.of(classes));
