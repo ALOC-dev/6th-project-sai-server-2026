@@ -40,6 +40,10 @@ uos:
   api-key: ${UOS_API_KEY}
   sync:
     enabled: true
+# AI 서버(시간표 인식·추천). 주소와 내부 키는 환경 변수로 받는다.
+ai:
+  base-url: ${AI_BASE_URL}
+  internal-api-key: ${INTERNAL_API_KEY}
 friend:
   # 초대 링크 도메인은 FE와 딥링크 설정을 확정하면 바꾼다.
   invite-base-url: https://sai.app/invite

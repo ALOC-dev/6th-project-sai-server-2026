@@ -36,6 +36,7 @@ com.aloc.sai
 ├── course/             # 학교 과목·건물 카탈로그와 학교 API 동기화, 학기·요일 공용 타입 (+ dto/)
 ├── timetable/          # 내 시간표와 시간표 이미지 인식 (+ dto/)
 ├── notification/       # 알림·푸시·찌르기 (+ dto/)
+├── ai/                 # AI 서버 호출 (공통 AiClient·AiException + 엔드포인트별 클라이언트, + dto/). 도메인 타입을 모른다
 ├── chat/               # 채팅 (+ dto/)
 └── appointment/        # 약속
 ```
