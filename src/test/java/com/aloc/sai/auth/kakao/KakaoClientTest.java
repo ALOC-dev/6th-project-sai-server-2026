@@ -16,7 +16,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class KakaoClientTest {
+    private static final String TOKEN_INFO_URI = "https://kapi.kakao.com/v1/user/access_token_info";
     private static final String USER_INFO_URI = "https://kapi.kakao.com/v2/user/me";
+    private static final long APP_ID = 1635056L;
 
     private MockRestServiceServer server;
     private KakaoClient kakaoClient;
@@ -25,11 +27,12 @@ class KakaoClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        kakaoClient = new KakaoClient(builder, USER_INFO_URI);
+        kakaoClient = new KakaoClient(builder, TOKEN_INFO_URI, USER_INFO_URI, APP_ID);
     }
 
     @Test
     void 카카오_응답을_사용자_정보로_변환한다() {
+        expectTokenInfo(APP_ID);
         server.expect(requestTo(USER_INFO_URI))
                 .andExpect(header("Authorization", "Bearer kakao-token"))
                 .andRespond(withSuccess("""
@@ -54,6 +57,7 @@ class KakaoClientTest {
 
     @Test
     void 기본_프로필_이미지도_그대로_저장_대상에_포함한다() {
+        expectTokenInfo(APP_ID);
         server.expect(requestTo(USER_INFO_URI))
                 .andRespond(withSuccess("""
                         {
@@ -74,6 +78,7 @@ class KakaoClientTest {
 
     @Test
     void 프로필_동의가_없어도_아이디만으로_변환한다() {
+        expectTokenInfo(APP_ID);
         server.expect(requestTo(USER_INFO_URI))
                 .andRespond(withSuccess("{\"id\": 123}", MediaType.APPLICATION_JSON));
 
@@ -82,7 +87,7 @@ class KakaoClientTest {
 
     @Test
     void 유효하지_않은_토큰이면_401로_변환한다() {
-        server.expect(requestTo(USER_INFO_URI)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+        server.expect(requestTo(TOKEN_INFO_URI)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
 
         assertThatThrownBy(() -> kakaoClient.getUserInfo("invalid"))
                 .isInstanceOfSatisfying(ApiException.class,
@@ -91,10 +96,37 @@ class KakaoClientTest {
 
     @Test
     void 카카오_서버_오류는_502로_변환한다() {
+        expectTokenInfo(APP_ID);
         server.expect(requestTo(USER_INFO_URI)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
         assertThatThrownBy(() -> kakaoClient.getUserInfo("kakao-token"))
                 .isInstanceOfSatisfying(ApiException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+    }
+
+    @Test
+    void 다른_카카오_앱에서_발급된_토큰이면_401이고_사용자_정보를_조회하지_않는다() {
+        expectTokenInfo(999L);
+
+        assertThatThrownBy(() -> kakaoClient.getUserInfo("other-app-token"))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+        server.verify();
+    }
+
+    @Test
+    void 토큰_정보_조회가_서버_오류면_502로_변환한다() {
+        server.expect(requestTo(TOKEN_INFO_URI)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> kakaoClient.getUserInfo("kakao-token"))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+    }
+
+    private void expectTokenInfo(long appId) {
+        server.expect(requestTo(TOKEN_INFO_URI))
+                .andExpect(header("Authorization", "Bearer " + (appId == APP_ID ? "kakao-token" : "other-app-token")))
+                .andRespond(withSuccess("{\"id\": 123, \"expires_in\": 3600, \"app_id\": " + appId + "}",
+                        MediaType.APPLICATION_JSON));
     }
 }

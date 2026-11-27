@@ -32,6 +32,9 @@ jwt:
   access-expiration-ms: 3600000      # 1시간
   refresh-expiration-ms: 1209600000  # 14일
 kakao:
+  # 카카오 디벨로퍼스 앱 ID. 비밀값이 아니며, 이 앱에서 발급된 토큰만 로그인에 받는다.
+  app-id: 1635056
+  token-info-uri: https://kapi.kakao.com/v1/user/access_token_info
   user-info-uri: https://kapi.kakao.com/v2/user/me
 expo:
   push-uri: https://exp.host/--/api/v2/push/send
