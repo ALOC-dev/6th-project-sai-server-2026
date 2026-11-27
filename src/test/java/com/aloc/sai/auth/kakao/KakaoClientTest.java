@@ -123,6 +123,17 @@ class KakaoClientTest {
                         e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
     }
 
+    @Test
+    void 토큰_정보에_앱_ID가_없으면_502로_변환한다() {
+        server.expect(requestTo(TOKEN_INFO_URI))
+                .andRespond(withSuccess("{\"id\": 123}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> kakaoClient.getUserInfo("kakao-token"))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+        server.verify();
+    }
+
     private void expectTokenInfo(long appId) {
         server.expect(requestTo(TOKEN_INFO_URI))
                 .andExpect(header("Authorization", "Bearer " + (appId == APP_ID ? "kakao-token" : "other-app-token")))
